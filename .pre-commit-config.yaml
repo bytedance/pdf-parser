@@ -1,0 +1,28 @@
+fail_fast: true
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.6
+    hooks:
+      # Run the Ruff formatter.
+      - id: ruff-format
+        name: "Ruff formatter"
+        args: [--config=pyproject.toml]
+        files: '^(pdf_parser|tests).*\.(py|ipynb)$'
+      # Run the Ruff linter.
+      - id: ruff
+        name: "Ruff linter"
+        args: [--exit-non-zero-on-fix, --fix, --config=pyproject.toml]
+        files: '^(pdf_parser|tests).*\.(py|ipynb)$'
+  - repo: local
+    hooks:
+      - id: system
+        name: MyPy
+        entry: uv run --no-sync mypy pdf_parser
+        pass_filenames: false
+        language: system
+        files: '\.py$'
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    # uv version.
+    rev: 0.7.17
+    hooks:
+      - id: uv-lock
