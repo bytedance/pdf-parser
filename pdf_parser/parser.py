@@ -1,3 +1,4 @@
+import base64
 import io
 import logging
 import os
@@ -10,7 +11,6 @@ from pymupdf.table import Table, TableFinder  # type: ignore[import-untyped]
 from .config import PyMuPDFParserConfig
 from .datamodel import Block, BlockArea, ContentType
 from .utils.hash import generate_hash
-from .utils.image import embedded_image_markdown
 from .utils.table import table_markdown
 
 _logger = logging.getLogger(__name__)
@@ -96,17 +96,18 @@ class PyMuPDFParser:
             List of blocks representing the contents and metadata of the PDF.
         """
         file_path = input
-        runtime_options.get("extract_images", self.config.extract_images)
+        extract_images = runtime_options.get(
+            "extract_images", self.config.extract_images
+        )
         extract_tables = runtime_options.get(
             "extract_tables", self.config.extract_tables
         )
-        password = runtime_options.get("password", "")
+        password = runtime_options.get("password")
 
         _logger.info(f"Parsing PDF file: {file_path}")
 
         if not os.path.exists(file_path):
-            _logger.error(f"File not found: {file_path}")
-            raise Exception("PDF file not found", file_path)
+            raise FileNotFoundError("PDF file not found", file_path)
 
         document = self._open_and_authenticate_document(file_path, password)
         _logger.info(f"Successfully opened PDF with {len(document)} pages")
@@ -119,7 +120,7 @@ class PyMuPDFParser:
             _logger.debug(f"Found {len(similarity_blocks)} recurring block patterns")
 
         all_blocks = self._extract_all_blocks(
-            document, similarity_blocks, extract_tables
+            document, similarity_blocks, extract_tables, extract_images
         )
         _logger.info(f"Extracted {len(all_blocks)} total blocks from document")
 
@@ -139,29 +140,21 @@ class PyMuPDFParser:
         return processed_blocks, doc_metadata
 
     def _open_and_authenticate_document(
-        self, file_path: str, password: str
+        self, file_path: str, password: str | None
     ) -> fitz.Document:
         """Open and authenticate a PDF document."""
         try:
             document = fitz.open(file_path)
         except Exception as e:
-            _logger.error(f"Failed to open PDF file {file_path}: {e}")
-            raise Exception("Cannot open PDF file", file_path, e)
+            raise Exception(f"Cannot open PDF file {file_path}") from e
 
         if document.is_encrypted:
             if password:
                 if not document.authenticate(password):
-                    _logger.error(
-                        f"Authentication failed for encrypted PDF: {file_path}"
-                    )
-                    raise Exception("Invalid password for PDF", file_path)
-                else:
-                    _logger.info(
-                        f"Successfully authenticated encrypted PDF: {file_path}"
-                    )
+                    raise PermissionError("Authentication failed for encrypted PDF")
+                _logger.info(f"Successfully authenticated encrypted PDF: {file_path}")
             else:
-                _logger.error(f"PDF is encrypted but no password provided: {file_path}")
-                raise Exception("PDF is encrypted, but no password provided", file_path)
+                raise PermissionError("Password required for encrypted PDF")
 
         if document.page_count == 0:
             _logger.warning(f"PDF file has no pages: {file_path}")
@@ -191,6 +184,7 @@ class PyMuPDFParser:
         document: fitz.Document,
         similarity_blocks: dict[str, Any],
         extract_tables: bool,
+        extract_images: bool,
     ) -> list[Block]:
         """Extract all blocks from all pages of the document."""
         all_blocks: list[Block] = []
@@ -218,6 +212,7 @@ class PyMuPDFParser:
                 document,
                 page_num,
                 extract_tables,
+                extract_images,
             )
             all_blocks.extend(page_blocks)
 
@@ -232,6 +227,7 @@ class PyMuPDFParser:
         document: fitz.Document,
         page_num: int,
         extract_tables: bool,
+        extract_images: bool,
     ) -> list[Block]:
         """Extract all blocks from a single page."""
         page_blocks: list[Block] = []
@@ -259,6 +255,7 @@ class PyMuPDFParser:
                 table_areas,
                 document,
                 page_num,
+                extract_images,
             )
             page_blocks.extend(block_results)
 
@@ -517,11 +514,7 @@ class PyMuPDFParser:
         if similarity_blocks and image_hash in similarity_blocks:
             return []
 
-        # Process the image
-        img_data = block["image"]
-        image_content, image_format = embedded_image_markdown(img_data)
-        if not image_content:
-            return []
+        image_content = base64.b64encode(image_data).decode("utf-8")
 
         # Note: Image blocks use 'rect' key, not 'bbox'
         return [
@@ -535,12 +528,12 @@ class PyMuPDFParser:
 
     @staticmethod
     def image_acceptable(image_data: bytes) -> bool:
-        if not image_data:
+        if not image_data or len(image_data) < 100:
             return False
         try:
             with Image.open(io.BytesIO(image_data)) as image:
                 w, h = image.size
-                return bool(w >= 15 and h >= 15)
+                return w >= 15 and h >= 15
         except UnidentifiedImageError:  # image corrupted
             return False
 
@@ -553,6 +546,7 @@ class PyMuPDFParser:
         table_areas: list[tuple[float, float, float, float]],
         document: fitz.Document,
         page_num: int,
+        extract_images: bool,
     ) -> list[Block]:
         """
         Process a single PDF block and return the appropriate Block objects.
@@ -581,11 +575,10 @@ class PyMuPDFParser:
                 document,
                 page_num,
             )
-        elif block["type"] == self.BLOCK_TYPE_IMAGE:
+        elif block["type"] == self.BLOCK_TYPE_IMAGE and extract_images:
             return self._process_image_block(block, similarity_blocks, page_num)
-        else:
-            # Unknown block type, skip silently
-            return []
+        # Unknown block type, skip silently
+        return []
 
     def _get_header_footer_positions(
         self, page: fitz.Page, width: float, height: float
