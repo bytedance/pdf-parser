@@ -1,6 +1,8 @@
 # PDF Parser
 
-A HTTP server converting PDF file to text blocks
+A HTTP server converting PDF file to text blocks.
+
+This project uses [PyMuPDF](https://pymupdf.readthedocs.io/en/latest/) and complies with its open-source licensing obligations.
 
 ## Developing
 
