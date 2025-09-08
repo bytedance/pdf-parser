@@ -21,6 +21,12 @@ from .config import PyMuPDFParserConfig
 from .datamodel import HealthCheckResponse, ParseRequest, ParseResponse
 from .parser import PyMuPDFParser
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:\t%(asctime)s - %(name)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -36,7 +42,7 @@ def create_app() -> FastAPI:
     def health() -> HealthCheckResponse:
         return HealthCheckResponse()
 
-    @app.post("/parse")
+    @app.post("/parse", response_model=ParseResponse)
     def parse(request: ParseRequest):
         try:
             blocks, metadata = parser.parse(

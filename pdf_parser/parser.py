@@ -183,7 +183,8 @@ class PyMuPDFParser:
         if document.metadata:
             metadata.update(
                 {
-                    key: document.metadata[key]
+                    # avoid fastapi str.encode('utf-8') raise UnicodeEncodeError
+                    key: document.metadata[key].encode("utf-8", "replace").decode()
                     for key in fields
                     if document.metadata.get(key)
                 }
@@ -650,7 +651,7 @@ class PyMuPDFParser:
         _logger.debug(f"extracted table {tables}")
         if tables:
             for table in tables:
-                _logger.info(f"extracting table {table.bbox}")
+                _logger.debug(f"extracting table {table.bbox}")
                 table_content = self._table_to_markdown(table)
                 if table_content:
                     table_block = self._create_block(
@@ -841,7 +842,7 @@ class PyMuPDFParser:
             # For blocks with mixed fonts, be more lenient
             # font_ratio = max_font2 / max_font1 if max_font1 > 0 else 1.0
             # font_compatible = abs(font_ratio - 1.0) <= 0.2  # Allow 20% font size difference for mixed-font blocks
-            _logger.info(
+            _logger.debug(
                 f"Font compatible: {font_compatible} (sizes: {max_font1:.1f} vs {max_font2:.1f})"
             )
 
@@ -860,7 +861,7 @@ class PyMuPDFParser:
         _logger.debug(f"Cross-column result: {is_continuation}")
 
         if is_continuation:
-            _logger.info(
+            _logger.debug(
                 f'CROSS-COLUMN CONTINUATION DETECTED: "{content1[-20:]}..." -> "{content2}"'
             )
 
@@ -906,7 +907,7 @@ class PyMuPDFParser:
         # Check for cross-column continuation first (special case that bypasses position checks)
         is_cross_column = self._is_cross_column_continuation(block1, block2)
         if is_cross_column:
-            _logger.info("Cross-column continuation detected, merging")
+            _logger.debug("Cross-column continuation detected, merging")
             return True
 
         # Check vertical gap is reasonable for regular same-column merging
@@ -916,7 +917,7 @@ class PyMuPDFParser:
             block1_last_rect[3] - block1_last_rect[1],
         )
         if vertical_gap > line_height:
-            _logger.info(
+            _logger.debug(
                 f"Vertical gap too large ({vertical_gap:.2f} > {self.VERTICAL_MERGE_THRESHOLD}), not merging"
             )
             return False
