@@ -15,7 +15,7 @@
 import base64
 import io
 import logging
-import os
+import threading
 from typing import Any
 
 import fitz  # type: ignore[import-untyped]
@@ -92,6 +92,8 @@ class PyMuPDFParser:
 
     def __init__(self, config: PyMuPDFParserConfig):
         self.config = config
+        # PyMuPDF is not threadable https://github.com/pymupdf/PyMuPDF/issues/107
+        self.pymupdf_lock = threading.Lock()
 
     def parse(
         self, input: str, **runtime_options: Any
@@ -119,9 +121,6 @@ class PyMuPDFParser:
         password = runtime_options.get("password")
 
         _logger.info(f"Parsing PDF file: {file_path}")
-
-        if not os.path.exists(file_path):
-            raise FileNotFoundError("PDF file not found", file_path)
 
         document = self._open_and_authenticate_document(file_path, password)
         _logger.info(f"Successfully opened PDF with {len(document)} pages")
@@ -159,6 +158,8 @@ class PyMuPDFParser:
         """Open and authenticate a PDF document."""
         try:
             document = fitz.open(file_path)
+        except fitz.FileNotFoundError:
+            raise FileNotFoundError(f"File not exist: {file_path}")
         except Exception as e:
             raise Exception(f"Cannot open PDF file {file_path}") from e
 
@@ -647,7 +648,10 @@ class PyMuPDFParser:
     ) -> list[Block]:
         result_blocks: list[Block] = []
 
-        tables: TableFinder = page.find_tables()
+        with self.pymupdf_lock:
+            # multi-threading will cause ValueError("not a textpage of this page")
+            # https://github.com/pymupdf/PyMuPDF/issues/3241
+            tables: TableFinder = page.find_tables()
         _logger.debug(f"extracted table {tables}")
         if tables:
             for table in tables:
