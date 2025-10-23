@@ -30,6 +30,12 @@ from .utils.table import table_markdown
 _logger = logging.getLogger(__name__)
 
 
+def ensure_utf8(text: Any) -> str:
+    # avoid fastapi str.encode('utf-8') raise UnicodeEncodeError
+    s = text if isinstance(text, str) else str(text)
+    return s.encode("utf-8", "replace").decode("utf-8")
+
+
 class PyMuPDFParser:
     """
     PDF document parser based on PyMuPDF (fitz).
@@ -179,20 +185,16 @@ class PyMuPDFParser:
     def _extract_document_metadata(self, document: fitz.Document) -> dict[str, Any]:
         """Extract metadata from the PDF document."""
         fields = ["title", "author", "subject", "keywords", "creator", "producer"]
-        metadata = {}
+        metadata: dict[str, Any] = {"page_count": len(document)}
 
         if document.metadata:
             metadata.update(
                 {
-                    # avoid fastapi str.encode('utf-8') raise UnicodeEncodeError
-                    key: document.metadata[key].encode("utf-8", "replace").decode()
-                    for key in fields
-                    if document.metadata.get(key)
+                    k: ensure_utf8(v)
+                    for k, v in document.metadata.items()
+                    if k in fields and v
                 }
             )
-
-        metadata["page_count"] = len(document)
-
         return metadata
 
     def _extract_all_blocks(
@@ -414,7 +416,9 @@ class PyMuPDFParser:
         return Block(
             type=content_type,
             areas=[area],
-            content=content,
+            content=content
+            if content_type == ContentType.image
+            else ensure_utf8(content),
             font_sizes=font_sizes or [],
             metadata=metadata or {},
         )
