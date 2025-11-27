@@ -12,4 +12,4 @@ RUN pip install . && pip uninstall -y pdf-parser
 
 COPY pdf_parser ./pdf_parser
 
-CMD ["python3", "-m", "pdf_parser"]
+CMD ["python3", "-m", "pdf_parser", "serve"]
