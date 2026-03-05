@@ -47,7 +47,7 @@ class OutputFormat(StrEnum):
 
 def _output_results(
     blocks: list[Block],
-    metadata: dict,
+    metadata: dict[str, Any],
     output_file: Optional[str],
     output_format: OutputFormat,
 ) -> None:
