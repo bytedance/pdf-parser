@@ -37,7 +37,8 @@ class Block(BaseModel):
     type: ContentType
     areas: list[BlockArea]
     content: str
-    font_sizes: list[float] = []
+    font_sizes: list[float] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ParseRequest(BaseModel):
