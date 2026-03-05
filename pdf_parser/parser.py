@@ -147,13 +147,16 @@ class PyMuPDFParser:
         _logger.info(f"Post-processed to {len(processed_blocks)} blocks")
 
         # Get page dimensions from the first page or use defaults
-        page_width = self.DEFAULT_PAGE_WIDTH
-        page_height = self.DEFAULT_PAGE_HEIGHT
         if len(document) > 0:
             first_page = document[0]
-            doc_metadata["page_width"] = first_page.rect.width
-            doc_metadata["page_height"] = first_page.rect.height
-            _logger.debug(f"Using page dimensions: {page_width}x{page_height}")
+            page_width = first_page.rect.width
+            page_height = first_page.rect.height
+        else:
+            page_width = self.DEFAULT_PAGE_WIDTH
+            page_height = self.DEFAULT_PAGE_HEIGHT
+        doc_metadata["page_width"] = page_width
+        doc_metadata["page_height"] = page_height
+        _logger.debug(f"Using page dimensions: {page_width}x{page_height}")
 
         _logger.info(f"Successfully parsed PDF into {len(processed_blocks)} blocks")
         return processed_blocks, doc_metadata
