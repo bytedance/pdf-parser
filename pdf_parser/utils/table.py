@@ -30,7 +30,7 @@ def table_markdown(rows: list[list[str]]) -> str:
         cells = [
             # escape or filter some characters for markdown table
             _markdown_table_chars_re.sub(
-                r"\\\1", x.replace("\n", " ").replace("\r", "")
+                r"\\\1", str(x).replace("\n", " ").replace("\r", "")
             )
             for x in row
         ]
