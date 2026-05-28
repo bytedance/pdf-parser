@@ -3,14 +3,15 @@ name = "pdf-parser"
 version = "0.1.0"
 description = "A HTTP PDF parse server"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 dependencies = [
-    "fastapi[standard]>=0.116.1",
+    "fastapi[standard]>=0.136.3",
     "pandas>=2.3.1",
-    "pillow>=11.3.0",
+    "pillow>=12.2.0",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
-    "pymupdf>=1.26.3",
+    "pymupdf>=1.26.7,<2",
+    "python-multipart>=0.0.29",
     "typer>=0.12.5",
     "uvicorn[standard]>=0.35.0",
 ]
