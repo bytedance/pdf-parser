@@ -1,0 +1,96 @@
+{
+  "skill_name": "litepdf",
+  "description": "Parse PDF files into Markdown plus images/manifest fully offline via the litepdf CLI (pymupdf-only, no OCR/VLM/network).",
+  "evals": [
+    {
+      "id": "parse_normal",
+      "prompt": "我现在在一个不能联网的环境里，需要把 evals/fixtures/normal.pdf 这个 PDF 的文字内容提取成 markdown，输出到 ./out 目录。帮我搞定。",
+      "files": ["fixtures/normal.pdf"],
+      "expectations": {
+        "should_trigger": true,
+        "files_created": ["out/normal/document.md", "out/normal/manifest.json"],
+        "output_contains": ["\"status\": \"success\""],
+        "notes": "成功解析单页文字 PDF，退出码 0，document.md 有正文内容，manifest status=success。"
+      }
+    },
+    {
+      "id": "parse_page_range",
+      "prompt": "evals/fixtures/multipage.pdf 有 7 页，我只要前两页的内容，离线转成 markdown 就行。",
+      "files": ["fixtures/multipage.pdf"],
+      "expectations": {
+        "should_trigger": true,
+        "output_contains": ["\"status\": \"success\"", "\"pages\": 2"],
+        "notes": "应使用 --pages 1-2（连续范围，parse 子命令选项），stats.pages 为 2，退出码 0。注意：--pages/1-2 是命令行参数，不会出现在 stdout JSON 信封中，断言只能校验信封里的 stats.pages。"
+      }
+    },
+    {
+      "id": "parse_with_figures",
+      "prompt": "把 evals/fixtures/with-figures.pdf 离线解析出来，我特别关心里面的图片有没有被抽出来。",
+      "files": ["fixtures/with-figures.pdf"],
+      "expectations": {
+        "should_trigger": true,
+        "files_created": ["out/with-figures/document.md", "out/with-figures/manifest.json"],
+        "output_contains": ["\"status\": \"success\""],
+        "notes": "成功解析，images/ 目录下应产出 page-*-figure-*.png，manifest.assets 非空（实测 2 张）。"
+      }
+    },
+    {
+      "id": "scanned_no_text_layer",
+      "prompt": "这份扫描件 evals/fixtures/scanned.pdf 帮我离线转成文字版 markdown。",
+      "files": ["fixtures/scanned.pdf"],
+      "expectations": {
+        "should_trigger": true,
+        "output_contains": ["local_mode_empty_text"],
+        "notes": "扫描件无文字层：解析成功(退出0)但 warnings 含 local_mode_empty_text；litepdf 无 OCR 兜底，应如实告知用户而非假装提取到文字。"
+      }
+    },
+    {
+      "id": "reject_non_pdf_image",
+      "prompt": "用 litepdf 把 evals/fixtures/not-a-pdf.jpeg 转成 markdown。",
+      "files": ["fixtures/not-a-pdf.jpeg"],
+      "expectations": {
+        "should_trigger": true,
+        "output_contains": ["INPUT_FORMAT_UNSUPPORTED", "\"exit_code\": 10"],
+        "notes": "非 PDF 输入 → 退出 10 INPUT_FORMAT_UNSUPPORTED；应引导用户改用 docparser，不应强行处理。"
+      }
+    },
+    {
+      "id": "handle_encrypted",
+      "prompt": "evals/fixtures/encrypted.pdf 解析一下，离线的。",
+      "files": ["fixtures/encrypted.pdf"],
+      "expectations": {
+        "should_trigger": true,
+        "output_contains": ["INPUT_CORRUPT", "\"exit_code\": 10"],
+        "notes": "加密 PDF → 退出 10 INPUT_CORRUPT；应建议先用 qpdf/pdftk 解密，不反复重试。"
+      }
+    },
+    {
+      "id": "handle_corrupt_empty",
+      "prompt": "帮我离线解析 evals/fixtures/zero_byte.pdf。",
+      "files": ["fixtures/zero_byte.pdf"],
+      "expectations": {
+        "should_trigger": true,
+        "output_contains": ["INPUT_CORRUPT", "\"exit_code\": 10"],
+        "notes": "0 字节/损坏 PDF → 退出 10 INPUT_CORRUPT，应如实报告损坏而非崩溃或挂起。"
+      }
+    },
+    {
+      "id": "negative_office_doc",
+      "prompt": "帮我把这个季度报告 report.docx 转换成 markdown，方便我贴到飞书文档里。",
+      "files": [],
+      "expectations": {
+        "should_trigger": false,
+        "notes": "Office 文档不属于 litepdf 范畴（应让位给 docparser），不应触发本技能。"
+      }
+    },
+    {
+      "id": "negative_ocr_request",
+      "prompt": "我有一张手机拍的发票照片 invoice.jpg，帮我用 OCR 把上面的金额和日期识别出来。",
+      "files": [],
+      "expectations": {
+        "should_trigger": false,
+        "notes": "图片 + OCR 识别需求，litepdf 无 OCR 能力且非 PDF，应让位给 docparser，不应触发。"
+      }
+    }
+  ]
+}

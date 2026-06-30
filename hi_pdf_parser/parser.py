@@ -125,6 +125,7 @@ class PyMuPDFParser:
             "extract_tables", self.config.extract_tables
         )
         password = runtime_options.get("password")
+        page_range = runtime_options.get("page_range")
 
         _logger.info(f"Parsing PDF file: {file_path}")
 
@@ -139,7 +140,7 @@ class PyMuPDFParser:
             _logger.debug(f"Found {len(similarity_blocks)} recurring block patterns")
 
         all_blocks = self._extract_all_blocks(
-            document, similarity_blocks, extract_tables, extract_images
+            document, similarity_blocks, extract_tables, extract_images, page_range
         )
         _logger.info(f"Extracted {len(all_blocks)} total blocks from document")
 
@@ -203,14 +204,17 @@ class PyMuPDFParser:
         similarity_blocks: dict[str, Any],
         extract_tables: bool,
         extract_images: bool,
+        page_range: tuple[int, int] | None = None,
     ) -> list[Block]:
         """Extract all blocks from all pages of the document."""
         all_blocks: list[Block] = []
         max_pages = self.config.max_pages
+        start_idx, end_idx = self._resolve_page_indices(page_range, len(document))
 
-        for page_idx, page in enumerate(document):
-            if max_pages and page_idx >= max_pages:
+        for page_idx in range(start_idx, end_idx + 1):
+            if max_pages and page_idx - start_idx >= max_pages:
                 break
+            page = document[page_idx]
 
             page_num = page_idx + 1  # 1-based page numbering
             page_width = page.rect.width
@@ -235,6 +239,24 @@ class PyMuPDFParser:
             all_blocks.extend(page_blocks)
 
         return all_blocks
+
+    @staticmethod
+    def _resolve_page_indices(
+        page_range: tuple[int, int] | None, total_pages: int
+    ) -> tuple[int, int]:
+        if total_pages <= 0:
+            return 0, -1
+        if page_range is None:
+            return 0, total_pages - 1
+
+        requested_start, requested_end = page_range
+        if requested_start > total_pages:
+            raise ValueError(
+                f"--pages start {requested_start} exceeds PDF page count {total_pages}"
+            )
+        start_idx = max(1, requested_start) - 1
+        end_idx = min(total_pages, requested_end) - 1
+        return start_idx, end_idx
 
     def _extract_page_blocks(
         self,
@@ -658,7 +680,7 @@ class PyMuPDFParser:
             tables: TableFinder = page.find_tables()
         _logger.debug(f"extracted table {tables}")
         if tables:
-            for table in tables:
+            for table in tables.tables:
                 _logger.debug(f"extracting table {table.bbox}")
                 table_content = self._table_to_markdown(table)
                 if table_content:
