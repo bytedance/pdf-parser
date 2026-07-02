@@ -6,7 +6,7 @@ Each CLI failure mode raises a :class:`CliError` subclass carrying a stable
 
 Exit-code contract (see plan section 9):
 
-* ``2``  - argparse errors (handled by argparse itself, not here)
+* ``2``  - CLI usage errors (handled by Typer/Click, not here)
 * ``10`` - input problems (not found / unsupported / missing dependency)
 * ``20`` - model service unreachable / errored
 * ``21`` - model service timeout

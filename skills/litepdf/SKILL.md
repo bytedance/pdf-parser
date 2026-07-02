@@ -105,7 +105,7 @@ Error:
 |------|---------|
 | 0 | success |
 | 1 | uncaught internal error |
-| 2 | usage / argparse error (bad flags or `--pages` spec) |
+| 2 | CLI usage error (bad flags or `--pages` spec) |
 | 10 | input problem: `INPUT_NOT_FOUND`, `INPUT_FORMAT_UNSUPPORTED`, `PAGE_RANGE_OUT_OF_BOUNDS`, `INPUT_CORRUPT` (encrypted PDF) |
 | 40 | `OUTPUT_WRITE_FAILURE` |
 
