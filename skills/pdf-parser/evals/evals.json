@@ -1,6 +1,6 @@
 {
-  "skill_name": "litepdf",
-  "description": "Parse PDF files into Markdown plus images/manifest fully offline via the litepdf CLI (pymupdf-only, no OCR/VLM/network).",
+  "skill_name": "pdf-parser",
+  "description": "Parse PDF files into Markdown plus images/manifest fully offline via the pdf-parser CLI (pymupdf-only, no OCR/VLM/network).",
   "evals": [
     {
       "id": "parse_normal",
@@ -41,12 +41,12 @@
       "expectations": {
         "should_trigger": true,
         "output_contains": ["local_mode_empty_text"],
-        "notes": "扫描件无文字层：解析成功(退出0)但 warnings 含 local_mode_empty_text；litepdf 无 OCR 兜底，应如实告知用户而非假装提取到文字。"
+        "notes": "扫描件无文字层：解析成功(退出0)但 warnings 含 local_mode_empty_text；pdf-parser 无 OCR 兜底，应如实告知用户而非假装提取到文字。"
       }
     },
     {
       "id": "reject_non_pdf_image",
-      "prompt": "用 litepdf 把 evals/fixtures/not-a-pdf.jpeg 转成 markdown。",
+      "prompt": "用 pdf-parser 把 evals/fixtures/not-a-pdf.jpeg 转成 markdown。",
       "files": ["fixtures/not-a-pdf.jpeg"],
       "expectations": {
         "should_trigger": true,
@@ -80,7 +80,7 @@
       "files": [],
       "expectations": {
         "should_trigger": false,
-        "notes": "Office 文档不属于 litepdf 范畴（应让位给 docparser），不应触发本技能。"
+        "notes": "Office 文档不属于 pdf-parser 范畴（应让位给 docparser），不应触发本技能。"
       }
     },
     {
@@ -89,7 +89,7 @@
       "files": [],
       "expectations": {
         "should_trigger": false,
-        "notes": "图片 + OCR 识别需求，litepdf 无 OCR 能力且非 PDF，应让位给 docparser，不应触发。"
+        "notes": "图片 + OCR 识别需求，pdf-parser 无 OCR 能力且非 PDF，应让位给 docparser，不应触发。"
       }
     }
   ]

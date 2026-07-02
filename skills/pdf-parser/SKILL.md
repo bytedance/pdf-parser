@@ -1,29 +1,29 @@
 ---
-name: litepdf
-description: Parse PDF files into Markdown plus images/manifest fully offline via the litepdf CLI (pymupdf-only, no docling/OCR/VLM). Invoke when the user needs to extract or convert a PDF's text/content to Markdown in an offline environment.
+name: pdf-parser
+description: Parse PDF files into Markdown plus images/manifest fully offline via the pdf-parser CLI (pymupdf-only, no docling/OCR/VLM). Invoke when the user needs to extract or convert a PDF's text/content to Markdown in an offline environment.
 ---
 
-# litepdf — Offline PDF Parsing CLI
+# pdf-parser — Offline PDF Parsing CLI
 
-Parse PDF files into clean Markdown plus extracted images and a structured manifest, using the installed `litepdf` CLI. This is a lightweight, fully offline tool.
+Parse PDF files into clean Markdown plus extracted images and a structured manifest, using the installed `pdf-parser` CLI. This is a lightweight, fully offline tool.
 
 Use this skill whenever a task involves extracting the **content** of a PDF in an offline setting — e.g. "parse this PDF offline", "convert this PDF to markdown without network", "extract the text from this PDF locally".
 
 ## Prerequisites
 
-This skill assumes the `litepdf` command is already installed and on `PATH`
+This skill assumes the `pdf-parser` command is already installed and on `PATH`
 (it is the console-script entry point bundled in the `pdf-parser` Python package).
 
 **Step 0 — always verify the command exists first:**
 
 ```bash
-litepdf --help
+pdf-parser --help
 ```
 
 If that succeeds, proceed. If it fails, stop and show the user the install
 guidance below instead of guessing paths.
 
-### If `litepdf: command not found`
+### If `pdf-parser: command not found`
 
 The package is not installed in the active environment. Use the bundled
 `pdf-parser` package from Git. This requires `uv` and network access to
@@ -50,9 +50,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Global flags (`-v`, `-vv`, `--quiet`) go **before** the subcommand, git/docker-style:
 
 ```bash
-litepdf [-v|-vv|--quiet] parse <file.pdf> [options]
-litepdf [-v|-vv|--quiet] batch <file.pdf>... [options]
-litepdf batch --from-file <list.txt> [options]
+pdf-parser [-v|-vv|--quiet] parse <file.pdf> [options]
+pdf-parser [-v|-vv|--quiet] batch <file.pdf>... [options]
+pdf-parser batch --from-file <list.txt> [options]
 ```
 
 - `parse` — exactly one PDF; prints one JSON envelope to stdout.
@@ -115,22 +115,22 @@ For `batch`: all-success → 0; partial failure → 1; all-failed → first fail
 
 ```bash
 # Parse a single PDF, default output to ./out/<stem>/
-litepdf parse report.pdf
+pdf-parser parse report.pdf
 
 # Specific page range, verbose
-litepdf -v parse report.pdf --pages 2-4 --out ./out
+pdf-parser -v parse report.pdf --pages 2-4 --out ./out
 
 # Batch, keep going, NDJSON to stdout
-litepdf batch a.pdf b.pdf --out ./out
+pdf-parser batch a.pdf b.pdf --out ./out
 
 # Batch from a manifest file, stop at first error
-litepdf batch --from-file files.txt --abort-on-error --out ./out
+pdf-parser batch --from-file files.txt --abort-on-error --out ./out
 ```
 
 ## Gotchas
 
-- litepdf only supports **PDF**. A non-PDF input → exit 10 `INPUT_FORMAT_UNSUPPORTED`; it does no OCR/Office/image conversion, so use a tool that supports those formats instead.
+- pdf-parser only supports **PDF** for `parse`/`batch`. A non-PDF input → exit 10 `INPUT_FORMAT_UNSUPPORTED`; it does no OCR/Office/image conversion, so use a tool that supports those formats instead.
 - It is **text-extraction only** (no OCR). A scanned PDF with no text layer yields little/no text and a `local_mode_empty_text` warning — there is no offline OCR fallback.
-- Global flags must precede the subcommand: `litepdf -v parse x.pdf`, **not** `litepdf parse x.pdf -v` (the latter errors with "unrecognized arguments").
+- Global flags must precede the subcommand: `pdf-parser -v parse x.pdf`, **not** `pdf-parser parse x.pdf -v` (the latter errors with "unrecognized arguments").
 - Encrypted PDFs → exit 10 `INPUT_CORRUPT` (decrypt with qpdf/pdftk first). 0-byte or otherwise corrupt PDFs that PyMuPDF can't open → also exit 10 `INPUT_CORRUPT`.
 - `batch` rejects two inputs sharing the same stem (output dir collision) and rejects mixing positional files with `--from-file`.

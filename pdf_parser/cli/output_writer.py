@@ -16,7 +16,7 @@ PNGs directly into ``images/`` and supplies the asset list, so only
 manifest/markdown writing is needed.
 
 This module contains **zero imports** of ``docling`` or ``docling_pipeline`` and
-is safe for use in the lightweight ``litepdf`` CLI path.
+is safe for use in the lightweight ``pdf-parser parse`` CLI path.
 """
 
 from __future__ import annotations

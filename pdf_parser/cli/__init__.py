@@ -1,1 +1,1 @@
-"""litepdf CLI implementation bundled with pdf_parser."""
+"""Shared CLI support for the ``pdf-parser`` command."""

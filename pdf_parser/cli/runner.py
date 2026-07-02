@@ -1,4 +1,4 @@
-"""单文档编排：litepdf 的 local-only runner。
+"""单文档编排：``pdf-parser parse`` 的 local-only runner。
 
 职责（对齐 docparser 的输出契约，但去掉 remote/fallback 分支）：
 
@@ -58,8 +58,8 @@ def run_parse(input_path: Path, config: ParseConfig) -> tuple[dict[str, Any], in
 
     if input_path.suffix.lower() != ".pdf":
         exc = InputFormatUnsupportedError(
-            f"litepdf 仅支持 PDF，收到: {input_path.suffix or '(no ext)'}",
-            hint="litepdf 是离线 PDF 文本提取工具；其他格式请使用 docparser。",
+            f"pdf-parser 仅支持 PDF，收到: {input_path.suffix or '(no ext)'}",
+            hint="pdf-parser 是离线 PDF 文本提取工具；其他格式请使用 docparser。",
         )
         return env.error_envelope_from_exc(str(input_path), exc), exc.exit_code
 
@@ -159,7 +159,7 @@ def _parse_with_project_parser(
     except PermissionError as exc:
         raise InputCorruptError(
             f"PDF 已加密: {input_path}",
-            hint="litepdf 不支持加密 PDF，请先用 qpdf/pdftk 等工具去除密码后重试。",
+            hint="pdf-parser 不支持加密 PDF，请先用 qpdf/pdftk 等工具去除密码后重试。",
         ) from exc
     except ValueError as exc:
         if str(exc).startswith("--pages"):

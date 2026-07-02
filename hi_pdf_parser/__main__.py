@@ -12,150 +12,227 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import json
-import logging
-from collections.abc import Iterator
-from enum import StrEnum
-from pathlib import Path
-from typing import Annotated, Any
+"""Unified ``pdf-parser`` command line entry point."""
 
+from __future__ import annotations
+
+import logging
+import sys
+from pathlib import Path
+from typing import Annotated
+
+import click
 import typer
 import uvicorn
 
 from .app import create_app
-from .config import PyMuPDFParserConfig
-from .datamodel import Block
-from .parser import PyMuPDFParser
+from .cli import envelope as env
+from .cli.errors import EXIT_INTERNAL_ERROR, EXIT_OK, EXIT_USAGE
+from .cli.page_range import PageSpecError, parse_page_spec
 from .settings import UvicornSettings
 
-app = typer.Typer(name="hi-pdf-parser", help="PDF Parser CLI and server")
+app = typer.Typer(
+    name="pdf-parser",
+    help="PDF Parser CLI and server.",
+    epilog="""示例:
+  pdf-parser parse report.pdf --out ./out
+  pdf-parser batch a.pdf b.pdf --out ./out
+  pdf-parser batch --from-file files.txt --out ./out
+  pdf-parser -v parse report.pdf --out ./out
+  pdf-parser serve --host 0.0.0.0 --port 8000
+
+查看子命令参数:
+  pdf-parser parse --help
+  pdf-parser batch --help
+  pdf-parser serve --help
+
+注意:
+  - 全局参数必须放在子命令之前, 例如 `pdf-parser -v parse ...`。
+  - parse/batch 仅支持 PDF; 其他格式请使用 docparser。""",
+    no_args_is_help=False,
+    add_completion=False,
+)
 
 
-def _validate_pdf_file(file_path: str) -> Path:
-    p = Path(file_path)
-    if not p.exists():
-        raise typer.BadParameter(f"File does not exist: {file_path}")
-    if not p.is_file():
-        raise typer.BadParameter(f"Path is not a file: {file_path}")
-    return p
-
-
-class OutputFormat(StrEnum):
-    json = "json"
-    text = "text"
-
-
-def _output_results(
-    blocks: list[Block],
-    metadata: dict,
-    output_file: str | None,
-    output_format: OutputFormat,
-) -> None:
-    def _text_lines() -> Iterator[str]:
-        prev_page = -1
-        for b in blocks:
-            page_num: int | None = None
-            if b.areas:
-                page_num = b.areas[0].page_num
-            if page_num is not None and page_num != prev_page:
-                yield f"-------------- Page {page_num} --------------"
-                prev_page = page_num
-            yield b.content
-
-    if output_format == OutputFormat.text:
-        if output_file:
-            Path(output_file).write_text("\n".join(_text_lines()), encoding="utf-8")
-            typer.echo(f"Results written to: {output_file}")
-        else:
-            for line in _text_lines():
-                typer.echo(line)
-        return
-
-    result = {"blocks": [b.model_dump() for b in blocks], "metadata": metadata}
-    if output_file:
-        Path(output_file).write_text(
-            json.dumps(result, ensure_ascii=False), encoding="utf-8"
-        )
-        typer.echo(f"Results written to: {output_file}")
-    else:
-        typer.echo(json.dumps(result, ensure_ascii=False))
-
-
-@app.command()
-def parse(
-    pdf_file: Annotated[str, typer.Argument(help="Path to the PDF file to parse")],
-    output: Annotated[
-        str | None,
-        typer.Option("-o", "--output", help="Output file path (default: stdout)"),
-    ] = None,
-    extract_images: Annotated[
+@app.callback()
+def _configure(
+    quiet: Annotated[
         bool,
-        typer.Option(
-            "--extract-images/--no-extract-images", help="Extract images from the PDF"
-        ),
-    ] = True,
-    extract_tables: Annotated[
-        bool,
-        typer.Option(
-            "--extract-tables/--no-extract-tables", help="Extract tables from the PDF"
-        ),
-    ] = True,
-    skip_header_footer: Annotated[
-        bool,
-        typer.Option(
-            "--skip-header-footer/--no-skip-header-footer",
-            help="Skip header and footer detection",
-        ),
-    ] = True,
-    max_pages: Annotated[
-        int | None,
-        typer.Option(
-            "--max-pages",
-            help="Maximum number of pages to process (default: all pages)",
-        ),
-    ] = None,
-    password: Annotated[
-        str | None,
-        typer.Option("--password", help="Password for encrypted PDF files"),
-    ] = None,
-    format: Annotated[
-        OutputFormat, typer.Option("--format", help="Output format")
-    ] = OutputFormat.text,
-    verbose: Annotated[
-        bool, typer.Option("-v", "--verbose", help="Enable verbose logging")
+        typer.Option("--quiet", show_envvar=False, help="关闭 parse/batch 进度日志。"),
     ] = False,
+    verbose: Annotated[
+        int,
+        typer.Option(
+            "-v",
+            "--verbose",
+            count=True,
+            show_envvar=False,
+            help="提升 parse/batch stderr 日志级别, 可叠加。",
+        ),
+    ] = 0,
 ) -> None:
-    if verbose:
-        logging.basicConfig(level=logging.INFO)
-    pdf_path = _validate_pdf_file(pdf_file)
-    cfg: dict[str, Any] = {
-        "extract_images": extract_images,
-        "extract_tables": extract_tables,
-        "skip_header_footer": skip_header_footer,
-    }
-    if max_pages is not None:
-        cfg["max_pages"] = max_pages
-    config = PyMuPDFParserConfig(**cfg)
-    parser = PyMuPDFParser(config)
+    from .cli.logging_setup import configure_logging
+
+    level = logging.DEBUG if verbose >= 2 else logging.INFO
+    configure_logging(level=level, quiet=quiet)
+
+
+def _validate_output_format(value: str) -> str:
+    if value != "markdown":
+        raise typer.BadParameter("--format 当前仅支持 markdown。")
+    return value
+
+
+def _validate_out_naming(value: str) -> str:
+    if value != "stem":
+        raise typer.BadParameter("--out-naming 当前仅支持 stem。")
+    return value
+
+
+def _validate_pages(pages: str | None) -> str | None:
+    if pages is None:
+        return None
     try:
-        typer.echo(f"Parsing PDF: {pdf_file}", err=True)
-        blocks, metadata = parser.parse(
-            str(pdf_path),
-            extract_images=extract_images,
-            extract_tables=extract_tables,
-            password=password,
-        )
-        typer.echo(f"Extracted {len(blocks)} blocks", err=True)
-        _output_results(blocks, metadata, output, format)
-    except FileNotFoundError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
-    except PermissionError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
-    except Exception as e:
-        typer.echo(f"Error parsing PDF: {e}", err=True)
-        raise typer.Exit(1)
+        parse_page_spec(pages)
+    except PageSpecError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    return pages
+
+
+OutOption = Annotated[
+    Path,
+    typer.Option("--out", show_envvar=False, help="输出根目录, 默认 ./out。"),
+]
+OutputFormatOption = Annotated[
+    str,
+    typer.Option(
+        "--format",
+        callback=_validate_output_format,
+        show_envvar=False,
+        help="输出格式, 当前仅支持 markdown。",
+    ),
+]
+PagesOption = Annotated[
+    str | None,
+    typer.Option(
+        "--pages",
+        "-p",
+        callback=_validate_pages,
+        show_envvar=False,
+        help="页码范围: 单页 n、区间 a-b、连续页 3,4; 不支持多段非连续范围。",
+    ),
+]
+OutNamingOption = Annotated[
+    str,
+    typer.Option(
+        "--out-naming",
+        callback=_validate_out_naming,
+        show_envvar=False,
+        help="输出命名策略, 当前仅支持 stem。",
+    ),
+]
+FromFileOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--from-file",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        show_envvar=False,
+        help="每行一个文件路径的清单文件, 与位置参数二选一。",
+    ),
+]
+
+
+def _page_range(pages: str | None) -> tuple[int, int] | None:
+    if pages is None:
+        return None
+    return parse_page_spec(pages)[0]
+
+
+def _collect_batch_inputs(
+    files: list[Path] | None, from_file: Path | None
+) -> list[Path]:
+    if from_file and files:
+        raise click.UsageError("--from-file 与位置参数 files 不能同时提供。")
+
+    if from_file:
+        lines = from_file.read_text(encoding="utf-8").splitlines()
+        inputs = [Path(line.strip()) for line in lines if line.strip()]
+    else:
+        inputs = files or []
+
+    if not inputs:
+        raise click.UsageError("batch 需要提供至少一个文件, 或使用 --from-file。")
+
+    seen: dict[str, Path] = {}
+    for path in inputs:
+        if path.stem in seen:
+            raise click.UsageError(
+                f"stem 冲突: {path} 与 {seen[path.stem]} 共享输出目录名 '{path.stem}'。"
+            )
+        seen[path.stem] = path
+
+    return inputs
+
+
+def _make_config(out: Path, pages: str | None):
+    from .cli.runner import ParseConfig
+
+    return ParseConfig(out=out, page_range=_page_range(pages))
+
+
+def _emit_envelope(envelope: dict) -> None:
+    typer.echo(env.dumps(envelope))
+
+
+@app.command(help="解析单个 PDF, stdout 输出单行 JSON envelope。")
+def parse(
+    file: Annotated[
+        Path,
+        typer.Argument(help="待解析的单个 PDF 路径。"),
+    ],
+    out: OutOption = Path("./out"),
+    output_format: OutputFormatOption = "markdown",
+    pages: PagesOption = None,
+    out_naming: OutNamingOption = "stem",
+) -> int:
+    from .cli import runner
+
+    config = _make_config(out, pages)
+    envelope, exit_code = runner.run_parse(file, config)
+    _emit_envelope(envelope)
+    return exit_code
+
+
+@app.command(help="批量解析多个 PDF, stdout 输出 NDJSON。")
+def batch(
+    files: Annotated[
+        list[Path] | None,
+        typer.Argument(help="待解析的多个 PDF 路径。"),
+    ] = None,
+    from_file: FromFileOption = None,
+    abort_on_error: Annotated[
+        bool,
+        typer.Option(
+            "--abort-on-error", show_envvar=False, help="遇到首个失败即停止。"
+        ),
+    ] = False,
+    out: OutOption = Path("./out"),
+    output_format: OutputFormatOption = "markdown",
+    pages: PagesOption = None,
+    out_naming: OutNamingOption = "stem",
+) -> int:
+    from .cli import runner
+
+    inputs = _collect_batch_inputs(files, from_file)
+    config = _make_config(out, pages)
+
+    def emit(envelope: dict) -> None:
+        _emit_envelope(envelope)
+
+    return runner.run_batch(inputs, config, abort_on_error=abort_on_error, emit=emit)
 
 
 @app.command()
@@ -196,5 +273,21 @@ def serve(
     )
 
 
+def main(argv: list[str] | None = None) -> int:
+    try:
+        result = app(args=argv, prog_name="pdf-parser", standalone_mode=False)
+    except click.exceptions.Exit as exc:
+        return exc.exit_code
+    except click.Abort:
+        click.echo("Aborted!", err=True)
+        return EXIT_INTERNAL_ERROR
+    except click.ClickException as exc:
+        exc.show()
+        return exc.exit_code or EXIT_USAGE
+    if isinstance(result, int):
+        return result
+    return EXIT_OK
+
+
 if __name__ == "__main__":
-    app()
+    sys.exit(main())
