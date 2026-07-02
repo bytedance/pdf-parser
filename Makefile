@@ -5,3 +5,7 @@ export:
 .PHONY: lint
 lint:
 	uv run pre-commit run --all-files
+
+.PHONY: wheel
+wheel:
+	uv build --wheel && rm -rf build

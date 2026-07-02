@@ -1,6 +1,6 @@
 [project]
-name = "pdf-parser"
-version = "0.1.0"
+name = "hi-pdf-parser"
+version = "0.0.4"
 description = "A HTTP PDF parse server"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"

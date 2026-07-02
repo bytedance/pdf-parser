@@ -20,6 +20,6 @@ USER nobody:nogroup
 
 WORKDIR /app
 
-COPY pdf_parser ./pdf_parser
+COPY hi_pdf_parser ./hi_pdf_parser
 
-CMD ["python3", "-m", "pdf_parser", "serve"]
+CMD ["python3", "-m", "hi_pdf_parser", "serve"]
