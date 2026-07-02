@@ -17,7 +17,7 @@ import logging
 from collections.abc import Iterator
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 
 import typer
 import uvicorn
@@ -28,7 +28,7 @@ from .datamodel import Block
 from .parser import PyMuPDFParser
 from .settings import UvicornSettings
 
-app = typer.Typer(name="pdf-parser", help="PDF Parser CLI and server")
+app = typer.Typer(name="hi-pdf-parser", help="PDF Parser CLI and server")
 
 
 def _validate_pdf_file(file_path: str) -> Path:
@@ -48,7 +48,7 @@ class OutputFormat(StrEnum):
 def _output_results(
     blocks: list[Block],
     metadata: dict,
-    output_file: Optional[str],
+    output_file: str | None,
     output_format: OutputFormat,
 ) -> None:
     def _text_lines() -> Iterator[str]:
@@ -85,7 +85,7 @@ def _output_results(
 def parse(
     pdf_file: Annotated[str, typer.Argument(help="Path to the PDF file to parse")],
     output: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("-o", "--output", help="Output file path (default: stdout)"),
     ] = None,
     extract_images: Annotated[
@@ -108,14 +108,14 @@ def parse(
         ),
     ] = True,
     max_pages: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(
             "--max-pages",
             help="Maximum number of pages to process (default: all pages)",
         ),
     ] = None,
     password: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--password", help="Password for encrypted PDF files"),
     ] = None,
     format: Annotated[
@@ -160,23 +160,23 @@ def parse(
 
 @app.command()
 def serve(
-    host: Annotated[Optional[str], typer.Option("--host", help="Server host")] = None,
-    port: Annotated[Optional[int], typer.Option("--port", help="Server port")] = None,
+    host: Annotated[str | None, typer.Option("--host", help="Server host")] = None,
+    port: Annotated[int | None, typer.Option("--port", help="Server port")] = None,
     reload: Annotated[
-        Optional[bool], typer.Option("--reload/--no-reload", help="Enable auto-reload")
+        bool | None, typer.Option("--reload/--no-reload", help="Enable auto-reload")
     ] = None,
     workers: Annotated[
-        Optional[int], typer.Option("--workers", help="Number of worker processes")
+        int | None, typer.Option("--workers", help="Number of worker processes")
     ] = None,
     root_path: Annotated[
-        Optional[str], typer.Option("--root-path", help="Root path for the app")
+        str | None, typer.Option("--root-path", help="Root path for the app")
     ] = None,
     proxy_headers: Annotated[
-        Optional[bool],
+        bool | None,
         typer.Option("--proxy-headers/--no-proxy-headers", help="Use proxy headers"),
     ] = None,
     timeout_keep_alive: Annotated[
-        Optional[int],
+        int | None,
         typer.Option("--timeout-keep-alive", help="Keep-alive timeout seconds"),
     ] = None,
 ) -> None:
