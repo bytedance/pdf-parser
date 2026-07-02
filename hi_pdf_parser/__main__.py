@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Unified ``pdf-parser`` command line entry point."""
+"""Unified ``hi-pdf-parser`` command line entry point."""
 
 from __future__ import annotations
 
@@ -32,22 +32,22 @@ from .cli.page_range import PageSpecError, parse_page_spec
 from .settings import UvicornSettings
 
 app = typer.Typer(
-    name="pdf-parser",
+    name="hi-pdf-parser",
     help="PDF Parser CLI and server.",
     epilog="""示例:
-  pdf-parser parse report.pdf --out ./out
-  pdf-parser batch a.pdf b.pdf --out ./out
-  pdf-parser batch --from-file files.txt --out ./out
-  pdf-parser -v parse report.pdf --out ./out
-  pdf-parser serve --host 0.0.0.0 --port 8000
+  hi-pdf-parser parse report.pdf --out ./out
+  hi-pdf-parser batch a.pdf b.pdf --out ./out
+  hi-pdf-parser batch --from-file files.txt --out ./out
+  hi-pdf-parser -v parse report.pdf --out ./out
+  hi-pdf-parser serve --host 0.0.0.0 --port 8000
 
 查看子命令参数:
-  pdf-parser parse --help
-  pdf-parser batch --help
-  pdf-parser serve --help
+  hi-pdf-parser parse --help
+  hi-pdf-parser batch --help
+  hi-pdf-parser serve --help
 
 注意:
-  - 全局参数必须放在子命令之前, 例如 `pdf-parser -v parse ...`。
+  - 全局参数必须放在子命令之前, 例如 `hi-pdf-parser -v parse ...`。
   - parse/batch 仅支持 PDF; 其他格式请使用 docparser。""",
     no_args_is_help=False,
     add_completion=False,
@@ -275,7 +275,7 @@ def serve(
 
 def main(argv: list[str] | None = None) -> int:
     try:
-        result = app(args=argv, prog_name="pdf-parser", standalone_mode=False)
+        result = app(args=argv, prog_name="hi-pdf-parser", standalone_mode=False)
     except click.exceptions.Exit as exc:
         return exc.exit_code
     except click.Abort:

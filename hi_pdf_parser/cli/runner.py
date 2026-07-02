@@ -1,10 +1,10 @@
-"""单文档编排：``pdf-parser parse`` 的 local-only runner。
+"""单文档编排：``hi-pdf-parser parse`` 的 local-only runner。
 
-职责（对齐 docparser 的输出契约，但去掉 remote/fallback 分支）：
+职责（对齐 hi-pdf-parser 的输出契约）：
 
 * 校验输入存在性；
 * 准备规范化输出目录，挂载 per-document ``logs/stderr.log``；
-* 调用 ``pdf_parser.parser.PyMuPDFParser.parse`` 复用项目内解析逻辑；
+* 调用 ``hi_pdf_parser.parser.PyMuPDFParser.parse`` 复用项目内解析逻辑；
 * 将 blocks 适配为 document.md / manifest.json / profiling.json；
 * 返回 ``(envelope, exit_code)``，从不调用 ``sys.exit`` 或打印，便于 batch 聚合。
 """
@@ -39,7 +39,7 @@ from .logging_setup import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from pdf_parser.datamodel import Block
+    from hi_pdf_parser.datamodel import Block
 
 _log = get_logger()
 
@@ -58,8 +58,8 @@ def run_parse(input_path: Path, config: ParseConfig) -> tuple[dict[str, Any], in
 
     if input_path.suffix.lower() != ".pdf":
         exc = InputFormatUnsupportedError(
-            f"pdf-parser 仅支持 PDF，收到: {input_path.suffix or '(no ext)'}",
-            hint="pdf-parser 是离线 PDF 文本提取工具；其他格式请使用 docparser。",
+            f"hi-pdf-parser 仅支持 PDF，收到: {input_path.suffix or '(no ext)'}",
+            hint="hi-pdf-parser 是离线 PDF 文本提取工具；其他格式请使用 docparser。",
         )
         return env.error_envelope_from_exc(str(input_path), exc), exc.exit_code
 
@@ -143,8 +143,8 @@ def _parse_with_project_parser(
 ) -> tuple[list[Block], dict[str, Any]]:
     import fitz  # type: ignore[import-untyped]
 
-    from pdf_parser.config import PyMuPDFParserConfig
-    from pdf_parser.parser import PyMuPDFParser
+    from hi_pdf_parser.config import PyMuPDFParserConfig
+    from hi_pdf_parser.parser import PyMuPDFParser
 
     parser = PyMuPDFParser(
         PyMuPDFParserConfig(
@@ -159,7 +159,7 @@ def _parse_with_project_parser(
     except PermissionError as exc:
         raise InputCorruptError(
             f"PDF 已加密: {input_path}",
-            hint="pdf-parser 不支持加密 PDF，请先用 qpdf/pdftk 等工具去除密码后重试。",
+            hint="hi-pdf-parser 不支持加密 PDF，请先用 qpdf/pdftk 等工具去除密码后重试。",
         ) from exc
     except ValueError as exc:
         if str(exc).startswith("--pages"):
@@ -195,7 +195,7 @@ def _blocks_to_markdown(
 ) -> tuple[str, list[dict[str, Any]], list[str]]:
     from PIL import Image
 
-    from pdf_parser.datamodel import ContentType
+    from hi_pdf_parser.datamodel import ContentType
 
     md_parts: list[str] = []
     assets: list[dict[str, Any]] = []

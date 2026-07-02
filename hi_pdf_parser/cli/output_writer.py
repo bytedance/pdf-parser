@@ -1,4 +1,4 @@
-"""Output contract writer for the docparser CLI.
+"""Output contract writer for the hi-pdf-parser CLI.
 
 Produces the normalized per-document layout::
 
@@ -15,15 +15,13 @@ Used by the ``local`` parsing path: the local parser writes its own already-name
 PNGs directly into ``images/`` and supplies the asset list, so only
 manifest/markdown writing is needed.
 
-This module contains **zero imports** of ``docling`` or ``docling_pipeline`` and
-is safe for use in the lightweight ``pdf-parser parse`` CLI path.
+This module stays independent of the HTTP server and parser implementation; it
+only writes the normalized CLI output files.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
-import re
 import shutil
 from typing import TYPE_CHECKING, Any
 
@@ -94,38 +92,6 @@ def write_profiling(stem_dir: Path, profiling: dict[str, Any]) -> None:
         )
     except OSError as exc:
         raise OutputWriteError(f"无法写入 profiling.json: {exc}") from exc
-
-
-def _sha256_of(path: Path) -> str:
-    h = hashlib.sha256()
-    h.update(path.read_bytes())
-    return h.hexdigest()
-
-
-# Matches inline LaTeX formulas: ``$ ... $``, no cross-line, no block ``$$...$$``.
-# Used by the docling post-processor (defined here so this module stays docling-free).
-_INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?!\$)([^\n$]+?)(?<!\\)\$(?!\$)")
-
-
-def _restore_inline_math_underscores(markdown: str) -> str:
-    r"""还原 docling Markdown 序列化器对 inline 公式内 ``_`` 的错误转义。
-
-    docling 的 ``escape_underscores=True`` 会对 TEXT 节点全文执行转义，
-    但不会识别 ``$...$`` 内的 LaTeX 公式区间，导致 ``$\theta_{1}$`` 被错误
-    输出为 ``$\theta\_{1}$``。本函数仅将 inline math 区间内的 ``\_`` 还原为 ``_``，
-    不影响正文中的正常转义。
-
-    在 ``export_to_markdown()`` 返回值上调用，影响面极小。
-    """
-    if "$" not in markdown or r"\_" not in markdown:
-        return markdown
-
-    def _restore(match: re.Match[str]) -> str:
-        body = match.group(1)
-        restored = body.replace(r"\_", "_")
-        return f"${restored}$"
-
-    return _INLINE_MATH_RE.sub(_restore, markdown)
 
 
 def build_manifest(

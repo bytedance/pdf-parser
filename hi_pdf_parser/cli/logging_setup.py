@@ -1,4 +1,4 @@
-"""Logging setup for the ``pdf-parser`` CLI.
+"""Logging setup for the ``hi-pdf-parser`` CLI.
 
 * stderr handler with ``[LEVEL] timestamp message`` format; messages are written
   in ``key=value`` style by callers (consistent with the existing
@@ -21,13 +21,13 @@ if TYPE_CHECKING:
 _STDERR_FORMAT = "[%(levelname)s] %(asctime)s %(message)s"
 
 # The logger namespace the CLI logs under. File handlers attach to this logger.
-CLI_LOGGER_NAME = "pdf_parser.cli"
+CLI_LOGGER_NAME = "hi_pdf_parser.cli"
 
 _stderr_handler: logging.Handler | None = None
 
 
 def configure_logging(level: int = logging.INFO, quiet: bool = False) -> None:
-    """Configure the root ``pdf-parser`` logger to emit to stderr.
+    """Configure the root ``hi-pdf-parser`` logger to emit to stderr.
 
     ``quiet`` raises the threshold to WARNING so progress (INFO) logs are muted
     while warnings/errors still surface.
