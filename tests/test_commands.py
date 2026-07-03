@@ -49,6 +49,26 @@ class CommandTest(unittest.TestCase):
             self.assertTrue((out_dir / "normal" / "manifest.json").exists())
             self.assertTrue((out_dir / "normal" / "logs" / "stderr.log").exists())
 
+    def test_parse_pages_limits_reported_page_count(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_dir = Path(temp_dir) / "out"
+
+            code, stdout, _stderr = self._run_command(
+                [
+                    "parse",
+                    str(FIXTURES / "multipage.pdf"),
+                    "--pages",
+                    "1",
+                    "--out",
+                    str(out_dir),
+                ]
+            )
+
+            envelope = json.loads(stdout)
+            self.assertEqual(code, 0)
+            self.assertEqual(envelope["status"], "success")
+            self.assertEqual(envelope["stats"]["pages"], 1)
+
     def test_batch_emits_ndjson_and_returns_partial_failure_code(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             out_dir = Path(temp_dir) / "out"

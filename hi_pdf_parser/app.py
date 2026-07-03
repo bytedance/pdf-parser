@@ -18,6 +18,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
 
 from .datamodel import HealthCheckResponse, ParseRequest, ParseResponse
+from .parse_runtime import ParseRuntimeOptions
 from .parser_factory import create_parser
 
 _logger = logging.getLogger(__name__)
@@ -37,13 +38,13 @@ def create_app() -> FastAPI:
 
     @app.post("/parse", response_model=ParseResponse)
     def parse(request: ParseRequest):
+        options = ParseRuntimeOptions(
+            password=request.password,
+            extract_images=request.extract_images,
+            extract_tables=request.extract_tables,
+        )
         try:
-            blocks, metadata = parser.parse(
-                request.file,
-                password=request.password,
-                extract_images=request.extract_images,
-                extract_tables=request.extract_tables,
-            )
+            blocks, metadata = parser.parse(request.file, **options.to_kwargs())
         except PermissionError as e:
             raise HTTPException(
                 status_code=400, detail=f"Can not open encrypted file: {e}"

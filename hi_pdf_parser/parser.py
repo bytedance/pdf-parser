@@ -113,6 +113,7 @@ class PyMuPDFParser:
                 - extract_images: Override config setting for image extraction.
                 - extract_tables: Override config setting for table extraction.
                 - password: Password for encrypted PDFs.
+                - page_range: Inclusive 1-based page range to parse.
 
         Returns:
             List of blocks representing the contents and metadata of the PDF.

@@ -44,6 +44,7 @@ from .errors import (
 )
 from .logging_setup import attach_file_handler, configure_logging, detach_file_handler
 from .page_range import PageSpecError, parse_page_spec
+from .parse_runtime import ParseRuntimeOptions
 from .settings import UvicornSettings
 
 if TYPE_CHECKING:
@@ -200,7 +201,7 @@ def _emit_envelope(envelope: dict) -> None:
 
 
 def _parse_file(
-    input_path: Path, out: Path, page_range: tuple[int, int] | None
+    input_path: Path, out: Path, options: ParseRuntimeOptions
 ) -> tuple[dict[str, Any], int]:
     if not input_path.exists() or not input_path.is_file():
         exc: CliError = InputNotFoundError(f"输入文件不存在: {input_path}")
@@ -217,7 +218,7 @@ def _parse_file(
     stem_dir = ow.prepare_output_dir(out, stem)
     handler = attach_file_handler(ow.stderr_log_path(stem_dir))
     try:
-        return _run_local_parse(input_path, stem_dir, page_range)
+        return _run_local_parse(input_path, stem_dir, options)
     except CliError as exc:
         _log.error(
             "parse_failed input=%s error_type=%s msg=%s",
@@ -240,19 +241,19 @@ def _parse_file(
 
 
 def _run_local_parse(
-    input_path: Path, stem_dir: Path, page_range: tuple[int, int] | None
+    input_path: Path, stem_dir: Path, options: ParseRuntimeOptions
 ) -> tuple[dict[str, Any], int]:
     _log.info(
         "local_parse_start input=%s page_range=%s",
         input_path,
-        page_range,
+        options.page_range,
     )
     started_at = time.monotonic()
-    blocks, metadata = _parse_with_project_parser(input_path, page_range)
+    blocks, metadata = _parse_with_project_parser(input_path, options)
     markdown, assets, warnings = _blocks_to_markdown(blocks, stem_dir)
     ow.write_document(stem_dir, markdown)
     duration_ms = int((time.monotonic() - started_at) * 1000)
-    page_count = _parsed_page_count(metadata, page_range)
+    page_count = _parsed_page_count(metadata, options.page_range)
     _log.info(
         "local_parse_done input=%s pages=%d images=%d duration_ms=%d",
         input_path,
@@ -289,7 +290,7 @@ def _run_local_parse(
 
 
 def _parse_with_project_parser(
-    input_path: Path, page_range: tuple[int, int] | None
+    input_path: Path, options: ParseRuntimeOptions
 ) -> tuple[list[Block], dict[str, Any]]:
     import fitz  # type: ignore[import-untyped]
 
@@ -298,7 +299,7 @@ def _parse_with_project_parser(
     parser = create_parser()
     try:
         with contextlib.redirect_stdout(sys.stderr):
-            return parser.parse(str(input_path), page_range=page_range)
+            return parser.parse(str(input_path), **options.to_kwargs())
     except PermissionError as exc:
         raise InputCorruptError(
             f"PDF 已加密: {input_path}",
@@ -409,8 +410,8 @@ def parse(
     pages: PagesOption = None,
     out_naming: OutNamingOption = "stem",
 ) -> int:
-    page_range = _page_range(pages)
-    envelope, exit_code = _parse_file(file, out, page_range)
+    options = ParseRuntimeOptions(page_range=_page_range(pages))
+    envelope, exit_code = _parse_file(file, out, options)
     _emit_envelope(envelope)
     return exit_code
 
@@ -434,7 +435,7 @@ def batch(
     out_naming: OutNamingOption = "stem",
 ) -> int:
     inputs = _collect_batch_inputs(files, from_file)
-    page_range = _page_range(pages)
+    options = ParseRuntimeOptions(page_range=_page_range(pages))
 
     def emit(envelope: dict) -> None:
         _emit_envelope(envelope)
@@ -445,7 +446,7 @@ def batch(
     total = len(inputs)
 
     for input_path in inputs:
-        envelope, code = _parse_file(input_path, out, page_range)
+        envelope, code = _parse_file(input_path, out, options)
         emit(envelope)
         if code != EXIT_OK:
             if first_failure_code is None:
