@@ -80,9 +80,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401"]
+"hi_pdf_parser/__main__.py" = ["RUF001", "RUF002", "RUF003"]
 "hi_pdf_parser/artifact_writer.py" = ["RUF001", "RUF002", "RUF003"]
 "hi_pdf_parser/page_range.py" = ["RUF001", "RUF002", "RUF003"]
-"hi_pdf_parser/parse_runner.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/*.py" = ["ASYNC"] # Disable ASYNC check for tests
 
 [tool.ruff.lint.mccabe]
