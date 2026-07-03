@@ -17,15 +17,14 @@ import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
 
-from .config import PyMuPDFParserConfig
 from .datamodel import HealthCheckResponse, ParseRequest, ParseResponse
-from .parser import PyMuPDFParser
+from .parser_factory import create_parser
 
 _logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
-    parser = PyMuPDFParser(PyMuPDFParserConfig())
+    parser = create_parser()
     app = FastAPI(
         title="PDF Parser Serve",
     )

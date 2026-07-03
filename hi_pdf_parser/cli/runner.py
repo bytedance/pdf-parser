@@ -143,16 +143,9 @@ def _parse_with_project_parser(
 ) -> tuple[list[Block], dict[str, Any]]:
     import fitz  # type: ignore[import-untyped]
 
-    from hi_pdf_parser.config import PyMuPDFParserConfig
-    from hi_pdf_parser.parser import PyMuPDFParser
+    from hi_pdf_parser.parser_factory import create_parser
 
-    parser = PyMuPDFParser(
-        PyMuPDFParserConfig(
-            extract_images=True,
-            extract_tables=True,
-            skip_header_footer=True,
-        )
-    )
+    parser = create_parser()
     try:
         with contextlib.redirect_stdout(sys.stderr):
             return parser.parse(str(input_path), page_range=page_range)
