@@ -218,7 +218,50 @@ def _parse_file(
     stem_dir = ow.prepare_output_dir(out, stem)
     handler = attach_file_handler(ow.stderr_log_path(stem_dir))
     try:
-        return _run_local_parse(input_path, stem_dir, options)
+        _log.info(
+            "local_parse_start input=%s page_range=%s",
+            input_path,
+            options.page_range,
+        )
+        started_at = time.monotonic()
+        blocks, metadata = _parse_pdf_blocks(input_path, options)
+        markdown, assets, warnings = _blocks_to_markdown(blocks, stem_dir)
+        ow.write_document(stem_dir, markdown)
+        duration_ms = int((time.monotonic() - started_at) * 1000)
+        page_count = _parsed_page_count(metadata, options.page_range)
+        _log.info(
+            "local_parse_done input=%s pages=%d images=%d duration_ms=%d",
+            input_path,
+            page_count,
+            len(assets),
+            duration_ms,
+        )
+
+        manifest = ow.build_manifest(
+            input_path=str(input_path),
+            mode="local",
+            mode_used="local",
+            status="success",
+            assets=assets,
+            stats={"pages": page_count, "duration_ms": duration_ms},
+            warnings=warnings,
+            fallback_reason=None,
+        )
+        ow.write_manifest(stem_dir, manifest)
+        ow.write_profiling(
+            stem_dir,
+            {"pages": [], "total_duration_ms": duration_ms},
+        )
+
+        envelope = env.success_envelope(
+            input_path=str(input_path),
+            out_dir=str(stem_dir),
+            mode="local",
+            mode_used="local",
+            manifest=manifest,
+            fallback_reason=None,
+        )
+        return envelope, EXIT_OK
     except CliError as exc:
         _log.error(
             "parse_failed input=%s error_type=%s msg=%s",
@@ -240,56 +283,7 @@ def _parse_file(
         detach_file_handler(handler)
 
 
-def _run_local_parse(
-    input_path: Path, stem_dir: Path, options: ParseRuntimeOptions
-) -> tuple[dict[str, Any], int]:
-    _log.info(
-        "local_parse_start input=%s page_range=%s",
-        input_path,
-        options.page_range,
-    )
-    started_at = time.monotonic()
-    blocks, metadata = _parse_with_project_parser(input_path, options)
-    markdown, assets, warnings = _blocks_to_markdown(blocks, stem_dir)
-    ow.write_document(stem_dir, markdown)
-    duration_ms = int((time.monotonic() - started_at) * 1000)
-    page_count = _parsed_page_count(metadata, options.page_range)
-    _log.info(
-        "local_parse_done input=%s pages=%d images=%d duration_ms=%d",
-        input_path,
-        page_count,
-        len(assets),
-        duration_ms,
-    )
-
-    manifest = ow.build_manifest(
-        input_path=str(input_path),
-        mode="local",
-        mode_used="local",
-        status="success",
-        assets=assets,
-        stats={"pages": page_count, "duration_ms": duration_ms},
-        warnings=warnings,
-        fallback_reason=None,
-    )
-    ow.write_manifest(stem_dir, manifest)
-    ow.write_profiling(
-        stem_dir,
-        {"pages": [], "total_duration_ms": duration_ms},
-    )
-
-    envelope = env.success_envelope(
-        input_path=str(input_path),
-        out_dir=str(stem_dir),
-        mode="local",
-        mode_used="local",
-        manifest=manifest,
-        fallback_reason=None,
-    )
-    return envelope, EXIT_OK
-
-
-def _parse_with_project_parser(
+def _parse_pdf_blocks(
     input_path: Path, options: ParseRuntimeOptions
 ) -> tuple[list[Block], dict[str, Any]]:
     import fitz  # type: ignore[import-untyped]
