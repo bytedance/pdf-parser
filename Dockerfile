@@ -8,7 +8,7 @@ WORKDIR /app
 
 ADD pyproject.toml uv.lock .
 
-RUN /root/.local/bin/uv export --no-hashes --no-dev -o requirements.txt
+RUN /root/.local/bin/uv export --extra server --no-hashes --no-dev -o requirements.txt
 
 FROM ${BASE_IMAGE}
 
