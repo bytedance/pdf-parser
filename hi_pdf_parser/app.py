@@ -21,12 +21,6 @@ from .config import PyMuPDFParserConfig
 from .datamodel import HealthCheckResponse, ParseRequest, ParseResponse
 from .parser import PyMuPDFParser
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s:\t%(asctime)s - %(name)s - %(message)s",
-    datefmt="%H:%M:%S",
-)
-
 _logger = logging.getLogger(__name__)
 
 

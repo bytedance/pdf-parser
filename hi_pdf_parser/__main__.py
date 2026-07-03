@@ -25,10 +25,10 @@ import click
 import typer
 import uvicorn
 
-from .app import create_app
 from .cli import envelope as env
 from .cli.errors import EXIT_INTERNAL_ERROR, EXIT_OK, EXIT_USAGE
 from .cli.page_range import PageSpecError, parse_page_spec
+from .logging_setup import configure_logging
 from .settings import UvicornSettings
 
 app = typer.Typer(
@@ -58,7 +58,7 @@ app = typer.Typer(
 def _configure(
     quiet: Annotated[
         bool,
-        typer.Option("--quiet", show_envvar=False, help="关闭 parse/batch 进度日志。"),
+        typer.Option("--quiet", show_envvar=False, help="关闭包级进度日志。"),
     ] = False,
     verbose: Annotated[
         int,
@@ -67,12 +67,10 @@ def _configure(
             "--verbose",
             count=True,
             show_envvar=False,
-            help="提升 parse/batch stderr 日志级别, 可叠加。",
+            help="提升包级 stderr 日志级别, 可叠加。",
         ),
     ] = 0,
 ) -> None:
-    from .cli.logging_setup import configure_logging
-
     level = logging.DEBUG if verbose >= 2 else logging.INFO
     configure_logging(level=level, quiet=quiet)
 
@@ -257,6 +255,8 @@ def serve(
         typer.Option("--timeout-keep-alive", help="Keep-alive timeout seconds"),
     ] = None,
 ) -> None:
+    from .app import create_app
+
     settings = UvicornSettings()
     uvicorn.run(
         app=create_app,

@@ -15,12 +15,17 @@ import base64
 import contextlib
 import hashlib
 import io
+import logging
 import sys
 import time
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from ..logging_setup import (
+    attach_file_handler,
+    detach_file_handler,
+)
 from . import envelope as env, output_writer as ow
 from .errors import (
     EXIT_OK,
@@ -30,18 +35,13 @@ from .errors import (
     InputNotFoundError,
     PageRangeOutOfBoundsError,
 )
-from .logging_setup import (
-    attach_file_handler,
-    detach_file_handler,
-    get_logger,
-)
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from hi_pdf_parser.datamodel import Block
 
-_log = get_logger()
+_log = logging.getLogger(__name__)
 
 
 @dataclass
