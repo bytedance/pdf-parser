@@ -2,6 +2,7 @@
 name = "hi-pdf-parser"
 version = "0.0.4"
 description = "A HTTP PDF parse server"
+license = "GPL-3.0-or-later"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
@@ -16,9 +17,13 @@ dependencies = [
     "uvicorn[standard]>=0.35.0",
 ]
 
+[project.urls]
+repository = "https://github.com/bytedance/pdf-parser"
+
 [dependency-groups]
 dev = [
     "mypy>=1.17.0",
+    "pre-commit>=4.6.0",
     "ruff>=0.12.4",
 ]
 
