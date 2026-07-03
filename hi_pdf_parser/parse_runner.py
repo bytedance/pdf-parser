@@ -1,4 +1,4 @@
-"""单文档编排：``hi-pdf-parser parse`` 的 local-only runner。
+"""File parsing command runner for ``hi-pdf-parser parse`` and ``batch``.
 
 职责（对齐 hi-pdf-parser 的输出契约）：
 
@@ -22,11 +22,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from ..logging_setup import (
-    attach_file_handler,
-    detach_file_handler,
-)
-from . import envelope as env, output_writer as ow
+from . import artifact_writer as ow, command_envelope as env
 from .errors import (
     EXIT_OK,
     CliError,
@@ -34,6 +30,10 @@ from .errors import (
     InputFormatUnsupportedError,
     InputNotFoundError,
     PageRangeOutOfBoundsError,
+)
+from .logging_setup import (
+    attach_file_handler,
+    detach_file_handler,
 )
 
 if TYPE_CHECKING:

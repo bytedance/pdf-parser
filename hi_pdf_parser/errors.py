@@ -1,12 +1,12 @@
-"""Custom exception family for the hi-pdf-parser CLI and exit-code mapping.
+"""Custom exception family for command errors and exit-code mapping.
 
-Each CLI failure mode raises a :class:`CliError` subclass carrying a stable
+Each command failure mode raises a :class:`CliError` subclass carrying a stable
 ``error_type`` string and an ``exit_code``. The top-level ``main`` catches
 :class:`CliError` to build an error envelope and exit with the mapped code.
 
 Exit-code contract:
 
-* ``2``  - CLI usage errors (handled by Typer/Click, not here)
+* ``2``  - command usage errors (handled by Typer/Click, not here)
 * ``10`` - input problems (not found / unsupported / corrupt PDF)
 * ``40`` - output write failure
 * ``1``  - any other uncaught error
@@ -23,7 +23,7 @@ EXIT_OUTPUT_WRITE_FAILURE = 40
 
 
 class CliError(Exception):
-    """Base class for all CLI errors with a stable error_type and exit_code."""
+    """Base class for command errors with a stable error_type and exit_code."""
 
     error_type: str = "INTERNAL_ERROR"
     exit_code: int = EXIT_INTERNAL_ERROR

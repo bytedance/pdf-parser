@@ -1,4 +1,4 @@
-"""Output contract writer for the hi-pdf-parser CLI.
+"""Output artifact writer for file parsing commands.
 
 Produces the normalized per-document layout::
 
@@ -16,7 +16,7 @@ PNGs directly into ``images/`` and supplies the asset list, so only
 manifest/markdown writing is needed.
 
 This module stays independent of the HTTP server and parser implementation; it
-only writes the normalized CLI output files.
+only writes the normalized command output files.
 """
 
 from __future__ import annotations

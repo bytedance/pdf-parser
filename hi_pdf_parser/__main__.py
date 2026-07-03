@@ -25,10 +25,10 @@ import click
 import typer
 import uvicorn
 
-from .cli import envelope as env
-from .cli.errors import EXIT_INTERNAL_ERROR, EXIT_OK, EXIT_USAGE
-from .cli.page_range import PageSpecError, parse_page_spec
+from . import command_envelope as env
+from .errors import EXIT_INTERNAL_ERROR, EXIT_OK, EXIT_USAGE
 from .logging_setup import configure_logging
+from .page_range import PageSpecError, parse_page_spec
 from .settings import UvicornSettings
 
 app = typer.Typer(
@@ -176,7 +176,7 @@ def _collect_batch_inputs(
 
 
 def _make_config(out: Path, pages: str | None):
-    from .cli.runner import ParseConfig
+    from .parse_runner import ParseConfig
 
     return ParseConfig(out=out, page_range=_page_range(pages))
 
@@ -196,10 +196,10 @@ def parse(
     pages: PagesOption = None,
     out_naming: OutNamingOption = "stem",
 ) -> int:
-    from .cli import runner
+    from . import parse_runner
 
     config = _make_config(out, pages)
-    envelope, exit_code = runner.run_parse(file, config)
+    envelope, exit_code = parse_runner.run_parse(file, config)
     _emit_envelope(envelope)
     return exit_code
 
@@ -222,7 +222,7 @@ def batch(
     pages: PagesOption = None,
     out_naming: OutNamingOption = "stem",
 ) -> int:
-    from .cli import runner
+    from . import parse_runner
 
     inputs = _collect_batch_inputs(files, from_file)
     config = _make_config(out, pages)
@@ -230,7 +230,9 @@ def batch(
     def emit(envelope: dict) -> None:
         _emit_envelope(envelope)
 
-    return runner.run_batch(inputs, config, abort_on_error=abort_on_error, emit=emit)
+    return parse_runner.run_batch(
+        inputs, config, abort_on_error=abort_on_error, emit=emit
+    )
 
 
 @app.command()

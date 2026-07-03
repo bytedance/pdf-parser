@@ -1,4 +1,4 @@
-"""Stdout envelope construction for the hi-pdf-parser CLI.
+"""Stdout envelope construction for file parsing commands.
 
 ``parse`` prints a single-line JSON envelope; ``batch`` prints one envelope per
 line (NDJSON). Both success and error results use the same envelope shape so

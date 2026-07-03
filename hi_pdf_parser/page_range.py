@@ -21,7 +21,7 @@ class PageSpecError(ValueError):
 def parse_page_spec(spec: str) -> list[tuple[int, int]]:
     """Parse a ``--pages`` spec into a list of (start, end) inclusive ranges.
 
-    Raises ``PageSpecError`` on any invalid / non-continuous spec. The CLI
+    Raises ``PageSpecError`` on any invalid / non-continuous spec. The command
     layer maps that exception to a Typer usage error (exit code 2).
     """
     raw = spec.strip()
