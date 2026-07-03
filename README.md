@@ -12,6 +12,12 @@ To use PDF Parser, simply install `hi-pdf-parser` from your package manager, e.g
 pip install hi-pdf-parser
 ```
 
+Install the optional server dependencies when running the HTTP server:
+
+```bash
+pip install 'hi-pdf-parser[server]'
+```
+
 ## Developing
 
 ### Prepare
@@ -19,7 +25,7 @@ pip install hi-pdf-parser
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then:
 
 ```bash
-uv sync --all-groups
+uv sync --all-groups --extra server
 ```
 
 ### Coding Style Guidelines

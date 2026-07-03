@@ -20,9 +20,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-import uvicorn
 
-from .app import create_app
 from .config import PyMuPDFParserConfig
 from .datamodel import Block
 from .parser import PyMuPDFParser
@@ -180,6 +178,18 @@ def serve(
         typer.Option("--timeout-keep-alive", help="Keep-alive timeout seconds"),
     ] = None,
 ) -> None:
+    try:
+        import uvicorn
+
+        from .app import create_app
+    except ImportError as e:
+        typer.echo(
+            "Server dependencies are not installed. "
+            "Install them with `pip install 'hi-pdf-parser[server]'`.",
+            err=True,
+        )
+        raise typer.Exit(1) from e
+
     settings = UvicornSettings()
     uvicorn.run(
         app=create_app,
