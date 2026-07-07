@@ -16,39 +16,20 @@
 
 from __future__ import annotations
 
-import base64
-import contextlib
-import hashlib
-import io
 import logging
 import sys
-import time
-from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import Annotated, NoReturn, cast
 
 import click
 import typer
 import uvicorn
 
-from . import artifact_writer as ow, command_envelope as env
-from .errors import (
-    EXIT_INTERNAL_ERROR,
-    EXIT_OK,
-    EXIT_USAGE,
-    CliError,
-    InputCorruptError,
-    InputFormatUnsupportedError,
-    InputNotFoundError,
-    PageRangeOutOfBoundsError,
-)
-from .logging_setup import attach_file_handler, configure_logging, detach_file_handler
-from .page_range import PageSpecError, parse_page_spec
-from .parse_runtime import ParseRuntimeOptions
+from .command_envelope import dumps
+from .command_runner import PageRange, collect_batch_inputs, parse_file
+from .errors import EXIT_INTERNAL_ERROR, EXIT_OK, EXIT_USAGE
+from .logging_setup import configure_logging
 from .settings import UvicornSettings
-
-if TYPE_CHECKING:
-    from .datamodel import Block
 
 _log = logging.getLogger(__name__)
 
@@ -108,14 +89,52 @@ def _validate_out_naming(value: str) -> str:
     return value
 
 
-def _validate_pages(pages: str | None) -> str | None:
+def _parse_pages(pages: str | None) -> PageRange | None:
     if pages is None:
         return None
-    try:
-        parse_page_spec(pages)
-    except PageSpecError as exc:
-        raise typer.BadParameter(str(exc)) from exc
-    return pages
+
+    raw = pages.strip()
+    hint = (
+        "MVP 仅支持单页（如 5）、连续区间（如 1-20）或连续逗号（如 3,4）；"
+        "不支持非连续页码（如 1,5,9）、反序或 0/负数。"
+    )
+
+    def fail() -> NoReturn:
+        raise typer.BadParameter(f"无效的 --pages 取值: {pages!r}。{hint}")
+
+    if not raw or ("-" in raw and "," in raw):
+        fail()
+
+    if "-" in raw:
+        parts = raw.split("-")
+        if len(parts) != 2:
+            fail()
+        start, end = _to_positive_int(parts[0], fail), _to_positive_int(parts[1], fail)
+        if start > end:
+            fail()
+        return (start, end)
+
+    if "," in raw:
+        parts = raw.split(",")
+        if len(parts) != 2:
+            fail()
+        start, end = _to_positive_int(parts[0], fail), _to_positive_int(parts[1], fail)
+        if end != start + 1:
+            fail()
+        return (start, end)
+
+    page = _to_positive_int(raw, fail)
+    return (page, page)
+
+
+def _to_positive_int(token: str, on_error) -> int:
+    token = token.strip()
+    if not token.isdigit():
+        on_error()
+    value = int(token)
+    if value < 1:
+        on_error()
+    return value
 
 
 OutOption = Annotated[
@@ -136,7 +155,7 @@ PagesOption = Annotated[
     typer.Option(
         "--pages",
         "-p",
-        callback=_validate_pages,
+        callback=_parse_pages,
         show_envvar=False,
         help="页码范围: 单页 n、区间 a-b、连续页 3,4; 不支持多段非连续范围。",
     ),
@@ -164,235 +183,6 @@ FromFileOption = Annotated[
 ]
 
 
-def _page_range(pages: str | None) -> tuple[int, int] | None:
-    if pages is None:
-        return None
-    return parse_page_spec(pages)[0]
-
-
-def _collect_batch_inputs(
-    files: list[Path] | None, from_file: Path | None
-) -> list[Path]:
-    if from_file and files:
-        raise click.UsageError("--from-file 与位置参数 files 不能同时提供。")
-
-    if from_file:
-        lines = from_file.read_text(encoding="utf-8").splitlines()
-        inputs = [Path(line.strip()) for line in lines if line.strip()]
-    else:
-        inputs = files or []
-
-    if not inputs:
-        raise click.UsageError("batch 需要提供至少一个文件, 或使用 --from-file。")
-
-    seen: dict[str, Path] = {}
-    for path in inputs:
-        if path.stem in seen:
-            raise click.UsageError(
-                f"stem 冲突: {path} 与 {seen[path.stem]} 共享输出目录名 '{path.stem}'。"
-            )
-        seen[path.stem] = path
-
-    return inputs
-
-
-def _emit_envelope(envelope: dict) -> None:
-    typer.echo(env.dumps(envelope))
-
-
-def _parse_file(
-    input_path: Path, out: Path, options: ParseRuntimeOptions
-) -> tuple[dict[str, Any], int]:
-    if not input_path.exists() or not input_path.is_file():
-        exc: CliError = InputNotFoundError(f"输入文件不存在: {input_path}")
-        return env.error_envelope_from_exc(str(input_path), exc), exc.exit_code
-
-    if input_path.suffix.lower() != ".pdf":
-        exc = InputFormatUnsupportedError(
-            f"hi-pdf-parser 仅支持 PDF，收到: {input_path.suffix or '(no ext)'}",
-            hint="hi-pdf-parser 是离线 PDF 文本提取工具；其他格式请使用 docparser。",
-        )
-        return env.error_envelope_from_exc(str(input_path), exc), exc.exit_code
-
-    stem = input_path.stem
-    stem_dir = ow.prepare_output_dir(out, stem)
-    handler = attach_file_handler(ow.stderr_log_path(stem_dir))
-    try:
-        _log.info(
-            "local_parse_start input=%s page_range=%s",
-            input_path,
-            options.page_range,
-        )
-        started_at = time.monotonic()
-        blocks, metadata = _parse_pdf_blocks(input_path, options)
-        markdown, assets, warnings = _blocks_to_markdown(blocks, stem_dir)
-        ow.write_document(stem_dir, markdown)
-        duration_ms = int((time.monotonic() - started_at) * 1000)
-        page_count = _parsed_page_count(metadata, options.page_range)
-        _log.info(
-            "local_parse_done input=%s pages=%d images=%d duration_ms=%d",
-            input_path,
-            page_count,
-            len(assets),
-            duration_ms,
-        )
-
-        manifest = ow.build_manifest(
-            input_path=str(input_path),
-            mode="local",
-            mode_used="local",
-            status="success",
-            assets=assets,
-            stats={"pages": page_count, "duration_ms": duration_ms},
-            warnings=warnings,
-            fallback_reason=None,
-        )
-        ow.write_manifest(stem_dir, manifest)
-        ow.write_profiling(
-            stem_dir,
-            {"pages": [], "total_duration_ms": duration_ms},
-        )
-
-        envelope = env.success_envelope(
-            input_path=str(input_path),
-            out_dir=str(stem_dir),
-            mode="local",
-            mode_used="local",
-            manifest=manifest,
-            fallback_reason=None,
-        )
-        return envelope, EXIT_OK
-    except CliError as exc:
-        _log.error(
-            "parse_failed input=%s error_type=%s msg=%s",
-            input_path,
-            exc.error_type,
-            exc.message,
-        )
-        return env.error_envelope_from_exc(str(input_path), exc), exc.exit_code
-    except Exception as e:
-        _log.exception("parse_internal_error input=%s", input_path)
-        envelope = env.error_envelope(
-            input_path=str(input_path),
-            error_type="INTERNAL_ERROR",
-            message=str(e),
-            exit_code=1,
-        )
-        return envelope, 1
-    finally:
-        detach_file_handler(handler)
-
-
-def _parse_pdf_blocks(
-    input_path: Path, options: ParseRuntimeOptions
-) -> tuple[list[Block], dict[str, Any]]:
-    import fitz  # type: ignore[import-untyped]
-
-    from hi_pdf_parser.parser_factory import create_parser
-
-    parser = create_parser()
-    try:
-        with contextlib.redirect_stdout(sys.stderr):
-            return parser.parse(str(input_path), **options.to_kwargs())
-    except PermissionError as exc:
-        raise InputCorruptError(
-            f"PDF 已加密: {input_path}",
-            hint="hi-pdf-parser 不支持加密 PDF，请先用 qpdf/pdftk 等工具去除密码后重试。",
-        ) from exc
-    except ValueError as exc:
-        if str(exc).startswith("--pages"):
-            total = _extract_total_pages_from_error(str(exc))
-            raise PageRangeOutOfBoundsError(
-                str(exc),
-                hint=f"该 PDF 共 {total} 页，请使用 1-{total} 范围内的页码。"
-                if total is not None
-                else None,
-            ) from exc
-        raise
-    except Exception as exc:
-        if isinstance(exc.__cause__, fitz.FileDataError):
-            raise InputCorruptError(
-                f"PDF 损坏或为空，无法打开: {input_path}",
-                hint="文件可能是 0 字节、被截断或不是有效的 PDF；请确认文件完整后重试。",
-            ) from exc
-        raise
-
-
-def _extract_total_pages_from_error(message: str) -> int | None:
-    try:
-        return int(message.rsplit(" ", 1)[-1])
-    except ValueError:
-        return None
-
-
-def _blocks_to_markdown(
-    blocks: list[Block], stem_dir: Path
-) -> tuple[str, list[dict[str, Any]], list[str]]:
-    from PIL import Image
-
-    from hi_pdf_parser.datamodel import ContentType
-
-    md_parts: list[str] = []
-    assets: list[dict[str, Any]] = []
-    warnings: list[str] = []
-    image_counts: dict[int, int] = defaultdict(int)
-    any_text = False
-
-    for block in blocks:
-        if block.type == ContentType.image:
-            page_num = block.areas[0].page_num if block.areas else 0
-            image_counts[page_num] += 1
-            filename = f"page-{page_num:03d}-figure-{image_counts[page_num]:03d}.png"
-            rel_ref = f"images/{filename}"
-            target = ow.images_dir(stem_dir) / filename
-            image_bytes = base64.b64decode(block.content)
-            with Image.open(io.BytesIO(image_bytes)) as image:
-                image.save(target, format="PNG")
-            assets.append(
-                {
-                    "asset_id": f"figure_{page_num:03d}_{image_counts[page_num]:03d}",
-                    "path": rel_ref,
-                    "page": page_num,
-                    "bbox": block.areas[0].rect if block.areas else None,
-                    "mime": "image/png",
-                    "sha256": _sha256_of(target),
-                }
-            )
-            md_parts.append(f"![Figure {image_counts[page_num]}]({rel_ref})")
-            continue
-
-        content = block.content.strip()
-        if not content:
-            continue
-        if block.type == ContentType.text:
-            any_text = True
-        md_parts.append(content)
-
-    if not any_text:
-        warnings.append("local_mode_empty_text")
-
-    markdown = "\n\n".join(md_parts).strip()
-    return (markdown + "\n") if markdown else "", assets, warnings
-
-
-def _sha256_of(path: Path) -> str:
-    h = hashlib.sha256()
-    h.update(path.read_bytes())
-    return h.hexdigest()
-
-
-def _parsed_page_count(
-    metadata: dict[str, Any], page_range: tuple[int, int] | None
-) -> int:
-    total = int(metadata.get("page_count") or 0)
-    if page_range is None or total <= 0:
-        return total
-    start, end = page_range
-    if start > total:
-        return 0
-    return min(total, end) - max(1, start) + 1
-
-
 @app.command(help="解析单个 PDF, stdout 输出单行 JSON envelope。")
 def parse(
     file: Annotated[
@@ -404,9 +194,9 @@ def parse(
     pages: PagesOption = None,
     out_naming: OutNamingOption = "stem",
 ) -> int:
-    options = ParseRuntimeOptions(page_range=_page_range(pages))
-    envelope, exit_code = _parse_file(file, out, options)
-    _emit_envelope(envelope)
+    page_range = cast(PageRange | None, pages)
+    envelope, exit_code = parse_file(file, out, page_range)
+    typer.echo(dumps(envelope))
     return exit_code
 
 
@@ -428,11 +218,8 @@ def batch(
     pages: PagesOption = None,
     out_naming: OutNamingOption = "stem",
 ) -> int:
-    inputs = _collect_batch_inputs(files, from_file)
-    options = ParseRuntimeOptions(page_range=_page_range(pages))
-
-    def emit(envelope: dict) -> None:
-        _emit_envelope(envelope)
+    inputs = collect_batch_inputs(files, from_file)
+    page_range = cast(PageRange | None, pages)
 
     first_failure_code: int | None = None
     failure_codes: list[int] = []
@@ -440,8 +227,8 @@ def batch(
     total = len(inputs)
 
     for input_path in inputs:
-        envelope, code = _parse_file(input_path, out, options)
-        emit(envelope)
+        envelope, code = parse_file(input_path, out, page_range)
+        typer.echo(dumps(envelope))
         if code != EXIT_OK:
             if first_failure_code is None:
                 first_failure_code = code

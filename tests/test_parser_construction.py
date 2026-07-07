@@ -3,10 +3,10 @@ from __future__ import annotations
 import unittest
 
 from hi_pdf_parser.config import PyMuPDFParserConfig
-from hi_pdf_parser.parser_factory import build_parser_config, create_parser
+from hi_pdf_parser.parser import build_parser_config, create_parser
 
 
-class ParserFactoryTest(unittest.TestCase):
+class ParserConstructionTest(unittest.TestCase):
     def test_build_parser_config_matches_direct_defaults(self) -> None:
         self.assertEqual(
             build_parser_config().model_dump(),

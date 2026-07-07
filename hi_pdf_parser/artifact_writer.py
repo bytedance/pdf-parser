@@ -21,14 +21,20 @@ only writes the normalized command output files.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import io
 import json
 import shutil
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from .errors import OutputWriteError
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from .datamodel import Block
 
 
 def prepare_output_dir(out_root: Path, stem: str) -> Path:
@@ -92,6 +98,62 @@ def write_profiling(stem_dir: Path, profiling: dict[str, Any]) -> None:
         )
     except OSError as exc:
         raise OutputWriteError(f"无法写入 profiling.json: {exc}") from exc
+
+
+def blocks_to_markdown(
+    blocks: list[Block], stem_dir: Path
+) -> tuple[str, list[dict[str, Any]], list[str]]:
+    from PIL import Image
+
+    from hi_pdf_parser.datamodel import ContentType
+
+    md_parts: list[str] = []
+    assets: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    image_counts: dict[int, int] = defaultdict(int)
+    any_text = False
+
+    for block in blocks:
+        if block.type == ContentType.image:
+            page_num = block.areas[0].page_num if block.areas else 0
+            image_counts[page_num] += 1
+            filename = f"page-{page_num:03d}-figure-{image_counts[page_num]:03d}.png"
+            rel_ref = f"images/{filename}"
+            target = images_dir(stem_dir) / filename
+            image_bytes = base64.b64decode(block.content)
+            with Image.open(io.BytesIO(image_bytes)) as image:
+                image.save(target, format="PNG")
+            assets.append(
+                {
+                    "asset_id": f"figure_{page_num:03d}_{image_counts[page_num]:03d}",
+                    "path": rel_ref,
+                    "page": page_num,
+                    "bbox": block.areas[0].rect if block.areas else None,
+                    "mime": "image/png",
+                    "sha256": _sha256_of(target),
+                }
+            )
+            md_parts.append(f"![Figure {image_counts[page_num]}]({rel_ref})")
+            continue
+
+        content = block.content.strip()
+        if not content:
+            continue
+        if block.type == ContentType.text:
+            any_text = True
+        md_parts.append(content)
+
+    if not any_text:
+        warnings.append("local_mode_empty_text")
+
+    markdown = "\n\n".join(md_parts).strip()
+    return (markdown + "\n") if markdown else "", assets, warnings
+
+
+def _sha256_of(path: Path) -> str:
+    h = hashlib.sha256()
+    h.update(path.read_bytes())
+    return h.hexdigest()
 
 
 def build_manifest(
