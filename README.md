@@ -4,6 +4,20 @@ A HTTP server converting PDF file to text blocks.
 
 This project uses [PyMuPDF](https://pymupdf.readthedocs.io/en/latest/) and complies with its open-source licensing obligations.
 
+## Installation
+
+To use PDF Parser, simply install `hi-pdf-parser` from your package manager, e.g. pip:
+
+```bash
+pip install hi-pdf-parser
+```
+
+Install the optional server dependencies when running the HTTP server:
+
+```bash
+pip install 'hi-pdf-parser[server]'
+```
+
 ## CLI
 
 The official command is `hi-pdf-parser`.
@@ -14,16 +28,16 @@ hi-pdf-parser batch a.pdf b.pdf --out ./out
 hi-pdf-parser serve --host 0.0.0.0 --port 8000
 ```
 
-`parse` and `batch` write Markdown, assets, manifest, and logs under `<out>/<stem>/`, and emit JSON envelopes on stdout. `serve` starts the HTTP API server.
+`parse` and `batch` write Markdown, assets, manifest, and logs under `<out>/<stem>/`, and emit JSON envelopes on stdout. `serve` starts the HTTP API server and requires the `server` extra.
 
 ## Developing
 
-### Install
+### Prepare
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), and then install pre-commit:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then:
 
 ```bash
-uv tool install pre-commit --with pre-commit-uv --force-reinstall
+uv sync --all-groups --extra server
 ```
 
 ### Coding Style Guidelines

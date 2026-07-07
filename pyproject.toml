@@ -2,10 +2,10 @@
 name = "hi-pdf-parser"
 version = "0.0.4"
 description = "A HTTP PDF parse server"
+license = "AGPL-3.0-only"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
-    "fastapi[standard]>=0.136.3",
     "pandas>=2.3.1",
     "pillow>=12.2.0",
     "pydantic>=2.11.7",
@@ -13,12 +13,21 @@ dependencies = [
     "pymupdf>=1.26.7,<2",
     "python-multipart>=0.0.29",
     "typer>=0.12.5",
+]
+
+[project.optional-dependencies]
+server = [
+    "fastapi[standard]>=0.136.3",
     "uvicorn[standard]>=0.35.0",
 ]
+
+[project.urls]
+repository = "https://github.com/bytedance/pdf-parser"
 
 [dependency-groups]
 dev = [
     "mypy>=1.17.0",
+    "pre-commit>=4.6.0",
     "ruff>=0.12.4",
 ]
 

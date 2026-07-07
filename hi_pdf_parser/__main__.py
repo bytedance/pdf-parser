@@ -23,7 +23,6 @@ from typing import Annotated, NoReturn, cast
 
 import click
 import typer
-import uvicorn
 
 from .command_envelope import dumps
 from .command_runner import PageRange, collect_batch_inputs, parse_file
@@ -276,7 +275,17 @@ def serve(
         typer.Option("--timeout-keep-alive", help="Keep-alive timeout seconds"),
     ] = None,
 ) -> None:
-    from .app import create_app
+    try:
+        import uvicorn
+
+        from .app import create_app
+    except ImportError as e:
+        typer.echo(
+            "Server dependencies are not installed. "
+            "Install them with `pip install 'hi-pdf-parser[server]'`.",
+            err=True,
+        )
+        raise typer.Exit(1) from e
 
     settings = UvicornSettings()
     uvicorn.run(
