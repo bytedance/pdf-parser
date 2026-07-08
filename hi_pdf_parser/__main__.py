@@ -35,21 +35,21 @@ _log = logging.getLogger(__name__)
 app = typer.Typer(
     name="hi-pdf-parser",
     help="PDF Parser CLI and server.",
-    epilog="""示例:
+    epilog="""Examples:
   hi-pdf-parser parse report.pdf --out ./out
   hi-pdf-parser batch a.pdf b.pdf --out ./out
   hi-pdf-parser batch --from-file files.txt --out ./out
   hi-pdf-parser -v parse report.pdf --out ./out
   hi-pdf-parser serve --host 0.0.0.0 --port 8000
 
-查看子命令参数:
+Show subcommand help:
   hi-pdf-parser parse --help
   hi-pdf-parser batch --help
   hi-pdf-parser serve --help
 
-注意:
-  - 全局参数必须放在子命令之前, 例如 `hi-pdf-parser -v parse ...`。
-  - parse/batch 仅支持 PDF; 其他格式请使用 docparser。""",
+Notes:
+  - Global options must appear before the subcommand, e.g. `hi-pdf-parser -v parse ...`.
+  - parse/batch accept PDF files only; use docparser for other formats.""",
     no_args_is_help=False,
     add_completion=False,
 )
@@ -59,7 +59,9 @@ app = typer.Typer(
 def _configure(
     quiet: Annotated[
         bool,
-        typer.Option("--quiet", show_envvar=False, help="关闭包级进度日志。"),
+        typer.Option(
+            "--quiet", show_envvar=False, help="Disable package progress logs."
+        ),
     ] = False,
     verbose: Annotated[
         int,
@@ -68,7 +70,7 @@ def _configure(
             "--verbose",
             count=True,
             show_envvar=False,
-            help="提升包级 stderr 日志级别, 可叠加。",
+            help="Increase the package stderr log level; repeat for debug logs.",
         ),
     ] = 0,
 ) -> None:
@@ -78,13 +80,13 @@ def _configure(
 
 def _validate_output_format(value: str) -> str:
     if value != "markdown":
-        raise typer.BadParameter("--format 当前仅支持 markdown。")
+        raise typer.BadParameter("--format currently supports markdown only.")
     return value
 
 
 def _validate_out_naming(value: str) -> str:
     if value != "stem":
-        raise typer.BadParameter("--out-naming 当前仅支持 stem。")
+        raise typer.BadParameter("--out-naming currently supports stem only.")
     return value
 
 
@@ -94,12 +96,14 @@ def _parse_pages(pages: str | None) -> PageRange | None:
 
     raw = pages.strip()
     hint = (
-        "MVP 仅支持单页（如 5）、连续区间（如 1-20）或连续逗号（如 3,4）；"
-        "不支持非连续页码（如 1,5,9）、反序或 0/负数。"
+        "MVP supports a single page (for example 5), an inclusive range "
+        "(for example 1-20), or two consecutive comma-separated pages "
+        "(for example 3,4); non-contiguous pages (for example 1,5,9), "
+        "reversed ranges, and 0 or negative values are not supported."
     )
 
     def fail() -> NoReturn:
-        raise typer.BadParameter(f"无效的 --pages 取值: {pages!r}。{hint}")
+        raise typer.BadParameter(f"Invalid --pages value: {pages!r}. {hint}")
 
     if not raw or ("-" in raw and "," in raw):
         fail()
@@ -138,7 +142,9 @@ def _to_positive_int(token: str, on_error) -> int:
 
 OutOption = Annotated[
     Path,
-    typer.Option("--out", show_envvar=False, help="输出根目录, 默认 ./out。"),
+    typer.Option(
+        "--out", show_envvar=False, help="Output root directory; default is ./out."
+    ),
 ]
 OutputFormatOption = Annotated[
     str,
@@ -146,7 +152,7 @@ OutputFormatOption = Annotated[
         "--format",
         callback=_validate_output_format,
         show_envvar=False,
-        help="输出格式, 当前仅支持 markdown。",
+        help="Output format; currently only markdown is supported.",
     ),
 ]
 PagesOption = Annotated[
@@ -156,7 +162,7 @@ PagesOption = Annotated[
         "-p",
         callback=_parse_pages,
         show_envvar=False,
-        help="页码范围: 单页 n、区间 a-b、连续页 3,4; 不支持多段非连续范围。",
+        help="Page range: single page n, range a-b, or consecutive pages 3,4; non-contiguous ranges are not supported.",
     ),
 ]
 OutNamingOption = Annotated[
@@ -165,7 +171,7 @@ OutNamingOption = Annotated[
         "--out-naming",
         callback=_validate_out_naming,
         show_envvar=False,
-        help="输出命名策略, 当前仅支持 stem。",
+        help="Output naming strategy; currently only stem is supported.",
     ),
 ]
 FromFileOption = Annotated[
@@ -177,16 +183,16 @@ FromFileOption = Annotated[
         dir_okay=False,
         readable=True,
         show_envvar=False,
-        help="每行一个文件路径的清单文件, 与位置参数二选一。",
+        help="Manifest file with one path per line; mutually exclusive with positional files.",
     ),
 ]
 
 
-@app.command(help="解析单个 PDF, stdout 输出单行 JSON envelope。")
+@app.command(help="Parse one PDF and print one JSON envelope to stdout.")
 def parse(
     file: Annotated[
         Path,
-        typer.Argument(help="待解析的单个 PDF 路径。"),
+        typer.Argument(help="Path to the PDF file to parse."),
     ],
     out: OutOption = Path("./out"),
     output_format: OutputFormatOption = "markdown",
@@ -199,17 +205,19 @@ def parse(
     return exit_code
 
 
-@app.command(help="批量解析多个 PDF, stdout 输出 NDJSON。")
+@app.command(help="Parse multiple PDFs and print NDJSON envelopes to stdout.")
 def batch(
     files: Annotated[
         list[Path] | None,
-        typer.Argument(help="待解析的多个 PDF 路径。"),
+        typer.Argument(help="PDF files to parse."),
     ] = None,
     from_file: FromFileOption = None,
     abort_on_error: Annotated[
         bool,
         typer.Option(
-            "--abort-on-error", show_envvar=False, help="遇到首个失败即停止。"
+            "--abort-on-error",
+            show_envvar=False,
+            help="Stop after the first failed input.",
         ),
     ] = False,
     out: OutOption = Path("./out"),

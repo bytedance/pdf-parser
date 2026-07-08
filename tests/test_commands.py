@@ -11,9 +11,7 @@ from pathlib import Path
 from hi_pdf_parser import logging_setup
 from hi_pdf_parser.__main__ import main
 
-FIXTURES = (
-    Path(__file__).parent.parent / "skills" / "hi-pdf-parser" / "evals" / "fixtures"
-)
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 class CommandTest(unittest.TestCase):
@@ -101,7 +99,7 @@ class CommandTest(unittest.TestCase):
 
         self.assertEqual(code, 2)
         self.assertEqual(stdout, "")
-        self.assertIn("无效的 --pages 取值", stderr)
+        self.assertIn("Invalid --pages value", stderr)
 
     def test_batch_emits_ndjson_and_returns_partial_failure_code(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

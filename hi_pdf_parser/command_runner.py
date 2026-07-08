@@ -34,7 +34,7 @@ def collect_batch_inputs(
     files: list[Path] | None, from_file: Path | None
 ) -> list[Path]:
     if from_file and files:
-        raise click.UsageError("--from-file 与位置参数 files 不能同时提供。")
+        raise click.UsageError("--from-file cannot be used with positional files.")
 
     if from_file:
         lines = from_file.read_text(encoding="utf-8").splitlines()
@@ -43,13 +43,13 @@ def collect_batch_inputs(
         inputs = files or []
 
     if not inputs:
-        raise click.UsageError("batch 需要提供至少一个文件, 或使用 --from-file。")
+        raise click.UsageError("batch requires at least one file or --from-file.")
 
     seen: dict[str, Path] = {}
     for path in inputs:
         if path.stem in seen:
             raise click.UsageError(
-                f"stem 冲突: {path} 与 {seen[path.stem]} 共享输出目录名 '{path.stem}'。"
+                f"Stem collision: {path} and {seen[path.stem]} share output directory name '{path.stem}'."
             )
         seen[path.stem] = path
 
@@ -60,13 +60,13 @@ def parse_file(
     input_path: Path, out: Path, page_range: PageRange | None
 ) -> tuple[dict[str, Any], int]:
     if not input_path.exists() or not input_path.is_file():
-        exc: CliError = InputNotFoundError(f"输入文件不存在: {input_path}")
+        exc: CliError = InputNotFoundError(f"Input file does not exist: {input_path}")
         return env.error_envelope_from_exc(str(input_path), exc), exc.exit_code
 
     if input_path.suffix.lower() != ".pdf":
         exc = InputFormatUnsupportedError(
-            f"hi-pdf-parser 仅支持 PDF，收到: {input_path.suffix or '(no ext)'}",
-            hint="hi-pdf-parser 是离线 PDF 文本提取工具；其他格式请使用 docparser。",
+            f"hi-pdf-parser supports PDF only, got: {input_path.suffix or '(no ext)'}",
+            hint="hi-pdf-parser is an offline PDF text extraction tool; use docparser for other formats.",
         )
         return env.error_envelope_from_exc(str(input_path), exc), exc.exit_code
 
@@ -152,15 +152,15 @@ def _parse_pdf_blocks(
             return parser.parse(str(input_path), page_range=page_range)
     except PermissionError as exc:
         raise InputCorruptError(
-            f"PDF 已加密: {input_path}",
-            hint="hi-pdf-parser 不支持加密 PDF，请先用 qpdf/pdftk 等工具去除密码后重试。",
+            f"PDF is encrypted: {input_path}",
+            hint="hi-pdf-parser does not support encrypted PDFs; decrypt with qpdf/pdftk before retrying.",
         ) from exc
     except ValueError as exc:
         if str(exc).startswith("--pages"):
             total = _extract_total_pages_from_error(str(exc))
             raise PageRangeOutOfBoundsError(
                 str(exc),
-                hint=f"该 PDF 共 {total} 页，请使用 1-{total} 范围内的页码。"
+                hint=f"This PDF has {total} pages; use a page range within 1-{total}."
                 if total is not None
                 else None,
             ) from exc
@@ -168,8 +168,8 @@ def _parse_pdf_blocks(
     except Exception as exc:
         if isinstance(exc.__cause__, fitz.FileDataError):
             raise InputCorruptError(
-                f"PDF 损坏或为空，无法打开: {input_path}",
-                hint="文件可能是 0 字节、被截断或不是有效的 PDF；请确认文件完整后重试。",
+                f"PDF is corrupt or empty and cannot be opened: {input_path}",
+                hint="The file may be empty, truncated, or not a valid PDF; verify the file and retry.",
             ) from exc
         raise
 

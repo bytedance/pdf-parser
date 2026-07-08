@@ -46,19 +46,18 @@ def prepare_output_dir(out_root: Path, stem: str) -> Path:
     try:
         out_root.mkdir(parents=True, exist_ok=True)
         stem_dir = out_root / stem
-        # 防御路径遍历：stem 来源于用户输入文件名的 ``Path.stem``，诸如
-        # ``...pdf`` 会得到 ``..``、``..pdf`` 会得到 ``.``，直接拼接后对
-        # ``out_root/..`` 执行 rmtree 会误删输出根目录的父级/同级内容。
-        # 仅接受恰好位于 out_root 之内一层的目录。
+        # Guard against path traversal in stems such as ``..`` or ``.``.
         if stem_dir.resolve().parent != out_root.resolve():
-            raise OutputWriteError(f"非法的输出子目录名: {stem!r}")
+            raise OutputWriteError(f"Illegal output subdirectory name: {stem!r}")
         if stem_dir.exists():
             shutil.rmtree(stem_dir)
         (stem_dir / "images").mkdir(parents=True, exist_ok=True)
         (stem_dir / "logs").mkdir(parents=True, exist_ok=True)
         return stem_dir
     except OSError as exc:
-        raise OutputWriteError(f"无法创建输出目录 {out_root / stem}: {exc}") from exc
+        raise OutputWriteError(
+            f"Unable to create output directory {out_root / stem}: {exc}"
+        ) from exc
 
 
 def images_dir(stem_dir: Path) -> Path:
@@ -78,7 +77,7 @@ def write_document(stem_dir: Path, markdown: str) -> str:
     try:
         (stem_dir / "document.md").write_text(markdown, encoding="utf-8")
     except OSError as exc:
-        raise OutputWriteError(f"无法写入 document.md: {exc}") from exc
+        raise OutputWriteError(f"Unable to write document.md: {exc}") from exc
     return "document.md"
 
 
@@ -88,7 +87,7 @@ def write_manifest(stem_dir: Path, manifest: dict[str, Any]) -> None:
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
     except OSError as exc:
-        raise OutputWriteError(f"无法写入 manifest.json: {exc}") from exc
+        raise OutputWriteError(f"Unable to write manifest.json: {exc}") from exc
 
 
 def write_profiling(stem_dir: Path, profiling: dict[str, Any]) -> None:
@@ -97,7 +96,7 @@ def write_profiling(stem_dir: Path, profiling: dict[str, Any]) -> None:
             json.dumps(profiling, ensure_ascii=False, indent=2), encoding="utf-8"
         )
     except OSError as exc:
-        raise OutputWriteError(f"无法写入 profiling.json: {exc}") from exc
+        raise OutputWriteError(f"Unable to write profiling.json: {exc}") from exc
 
 
 def blocks_to_markdown(
