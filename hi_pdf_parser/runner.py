@@ -1,4 +1,4 @@
-"""Command execution helpers for local file parsing."""
+"""Orchestrate local PDF parsing and output artifact generation."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import click
 
-from . import artifact_writer as ow, command_envelope as env
+from . import artifact_writer as ow, envelope as env
 from .errors import (
     EXIT_OK,
     CliError,
@@ -30,20 +30,10 @@ PageRange = tuple[int, int]
 _log = logging.getLogger(__name__)
 
 
-def collect_batch_inputs(
-    files: list[Path] | None, from_file: Path | None
-) -> list[Path]:
-    if from_file and files:
-        raise click.UsageError("--from-file cannot be used with positional files.")
-
-    if from_file:
-        lines = from_file.read_text(encoding="utf-8").splitlines()
-        inputs = [Path(line.strip()) for line in lines if line.strip()]
-    else:
-        inputs = files or []
-
+def collect_input_paths(files: list[Path] | None) -> list[Path]:
+    inputs = files or []
     if not inputs:
-        raise click.UsageError("batch requires at least one file or --from-file.")
+        raise click.UsageError("parse requires at least one file.")
 
     seen: dict[str, Path] = {}
     for path in inputs:
@@ -95,13 +85,10 @@ def parse_file(
 
         manifest = ow.build_manifest(
             input_path=str(input_path),
-            mode="local",
-            mode_used="local",
             status="success",
             assets=assets,
             stats={"pages": page_count, "duration_ms": duration_ms},
             warnings=warnings,
-            fallback_reason=None,
         )
         ow.write_manifest(stem_dir, manifest)
         ow.write_profiling(
@@ -112,10 +99,7 @@ def parse_file(
         envelope = env.success_envelope(
             input_path=str(input_path),
             out_dir=str(stem_dir),
-            mode="local",
-            mode_used="local",
             manifest=manifest,
-            fallback_reason=None,
         )
         return envelope, EXIT_OK
     except CliError as exc:

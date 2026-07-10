@@ -157,19 +157,13 @@ def _sha256_of(path: Path) -> str:
 
 def build_manifest(
     input_path: str,
-    mode: str,
-    mode_used: str,
     status: str,
     assets: list[dict[str, Any]],
     stats: dict[str, Any],
     warnings: list[str],
-    fallback_reason: str | None,
 ) -> dict[str, Any]:
     return {
         "input": input_path,
-        "mode": mode,
-        "mode_used": mode_used,
-        "fallback_reason": fallback_reason,
         "status": status,
         "outputs": {"markdown": "document.md"},
         "assets": assets,

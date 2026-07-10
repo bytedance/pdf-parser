@@ -1,8 +1,7 @@
 """Stdout envelope construction for file parsing commands.
 
-``parse`` prints a single-line JSON envelope; ``batch`` prints one envelope per
-line (NDJSON). Both success and error results use the same envelope shape so
-consumers can branch on the ``status`` field.
+``parse`` prints one JSON envelope per input. Success and error results use the
+same envelope shape so consumers can branch on the ``status`` field.
 """
 
 from __future__ import annotations
@@ -17,19 +16,13 @@ if TYPE_CHECKING:
 def success_envelope(
     input_path: str,
     out_dir: str,
-    mode: str,
-    mode_used: str,
     manifest: dict[str, Any],
-    fallback_reason: str | None = None,
 ) -> dict[str, Any]:
     """Build a success envelope for a single document."""
     return {
         "status": "success",
         "input": input_path,
         "out": out_dir,
-        "mode": mode,
-        "mode_used": mode_used,
-        "fallback_reason": fallback_reason,
         "outputs": manifest.get("outputs", {}),
         "stats": manifest.get("stats", {}),
         "warnings": manifest.get("warnings", []),

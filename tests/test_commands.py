@@ -44,7 +44,8 @@ class CommandTest(unittest.TestCase):
             self.assertEqual(envelope["status"], "success")
             self.assertEqual(len(stdout.splitlines()), 1)
             self.assertTrue((out_dir / "normal" / "document.md").exists())
-            self.assertTrue((out_dir / "normal" / "manifest.json").exists())
+            manifest_path = out_dir / "normal" / "manifest.json"
+            self.assertTrue(manifest_path.exists())
             self.assertTrue((out_dir / "normal" / "logs" / "stderr.log").exists())
 
     def test_parse_pages_limits_reported_page_count(self) -> None:
@@ -101,13 +102,13 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(stdout, "")
         self.assertIn("Invalid --pages value", stderr)
 
-    def test_batch_emits_ndjson_and_returns_partial_failure_code(self) -> None:
+    def test_parse_multiple_emits_ndjson_and_returns_partial_failure_code(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             out_dir = Path(temp_dir) / "out"
 
             code, stdout, _stderr = self._run_command(
                 [
-                    "batch",
+                    "parse",
                     str(FIXTURES / "normal.pdf"),
                     str(FIXTURES / "not-a-pdf.jpeg"),
                     "--out",
@@ -122,6 +123,13 @@ class CommandTest(unittest.TestCase):
             )
             self.assertEqual(envelopes[1]["error_type"], "INPUT_FORMAT_UNSUPPORTED")
             self.assertTrue((out_dir / "normal" / "document.md").exists())
+
+    def test_parse_requires_at_least_one_input(self) -> None:
+        code, stdout, stderr = self._run_command(["parse"])
+
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, "")
+        self.assertIn("parse requires at least one file", stderr)
 
 
 if __name__ == "__main__":

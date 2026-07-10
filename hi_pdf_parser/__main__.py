@@ -24,10 +24,10 @@ from typing import Annotated, NoReturn, cast
 import click
 import typer
 
-from .command_envelope import dumps
-from .command_runner import PageRange, collect_batch_inputs, parse_file
+from .envelope import dumps
 from .errors import EXIT_INTERNAL_ERROR, EXIT_OK, EXIT_USAGE
 from .logging_setup import configure_logging
+from .runner import PageRange, collect_input_paths, parse_file
 from .settings import UvicornSettings
 
 _log = logging.getLogger(__name__)
@@ -37,19 +37,17 @@ app = typer.Typer(
     help="PDF Parser CLI and server.",
     epilog="""Examples:
   hi-pdf-parser parse report.pdf --out ./out
-  hi-pdf-parser batch a.pdf b.pdf --out ./out
-  hi-pdf-parser batch --from-file files.txt --out ./out
+  hi-pdf-parser parse a.pdf b.pdf --out ./out
   hi-pdf-parser -v parse report.pdf --out ./out
   hi-pdf-parser serve --host 0.0.0.0 --port 8000
 
 Show subcommand help:
   hi-pdf-parser parse --help
-  hi-pdf-parser batch --help
   hi-pdf-parser serve --help
 
 Notes:
   - Global options must appear before the subcommand, e.g. `hi-pdf-parser -v parse ...`.
-  - parse/batch accept PDF files only; use docparser for other formats.""",
+  - parse accepts PDF files only; use docparser for other formats.""",
     no_args_is_help=False,
     add_completion=False,
 )
@@ -174,58 +172,20 @@ OutNamingOption = Annotated[
         help="Output naming strategy; currently only stem is supported.",
     ),
 ]
-FromFileOption = Annotated[
-    Path | None,
-    typer.Option(
-        "--from-file",
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        readable=True,
-        show_envvar=False,
-        help="Manifest file with one path per line; mutually exclusive with positional files.",
-    ),
-]
 
 
-@app.command(help="Parse one PDF and print one JSON envelope to stdout.")
+@app.command(help="Parse one or more PDFs and print JSON envelopes to stdout.")
 def parse(
-    file: Annotated[
-        Path,
-        typer.Argument(help="Path to the PDF file to parse."),
-    ],
-    out: OutOption = Path("./out"),
-    output_format: OutputFormatOption = "markdown",
-    pages: PagesOption = None,
-    out_naming: OutNamingOption = "stem",
-) -> int:
-    page_range = cast(PageRange | None, pages)
-    envelope, exit_code = parse_file(file, out, page_range)
-    typer.echo(dumps(envelope))
-    return exit_code
-
-
-@app.command(help="Parse multiple PDFs and print NDJSON envelopes to stdout.")
-def batch(
     files: Annotated[
         list[Path] | None,
-        typer.Argument(help="PDF files to parse."),
+        typer.Argument(help="PDF file(s) to parse."),
     ] = None,
-    from_file: FromFileOption = None,
-    abort_on_error: Annotated[
-        bool,
-        typer.Option(
-            "--abort-on-error",
-            show_envvar=False,
-            help="Stop after the first failed input.",
-        ),
-    ] = False,
     out: OutOption = Path("./out"),
     output_format: OutputFormatOption = "markdown",
     pages: PagesOption = None,
     out_naming: OutNamingOption = "stem",
 ) -> int:
-    inputs = collect_batch_inputs(files, from_file)
+    inputs = collect_input_paths(files)
     page_range = cast(PageRange | None, pages)
 
     first_failure_code: int | None = None
@@ -241,16 +201,13 @@ def batch(
                 first_failure_code = code
             failure_codes.append(code)
             failures.append(str(input_path))
-            if abort_on_error:
-                _log.error("batch_abort input=%s exit_code=%s", input_path, code)
-                return code
 
     success_count = total - len(failure_codes)
     if not failure_codes:
         return EXIT_OK
 
     _log.error(
-        "batch_failures count=%d/%d files=%s",
+        "parse_failures count=%d/%d files=%s",
         len(failure_codes),
         total,
         ",".join(failures),
