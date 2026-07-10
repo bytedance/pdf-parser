@@ -7,17 +7,17 @@ repos:
       - id: ruff-format
         name: "Ruff formatter"
         args: [--config=pyproject.toml]
-        files: '^(pdf_parser|tests).*\.(py|ipynb)$'
+        files: '^(hi_pdf_parser|tests).*\.(py|ipynb)$'
       # Run the Ruff linter.
       - id: ruff
         name: "Ruff linter"
         args: [--exit-non-zero-on-fix, --fix, --config=pyproject.toml]
-        files: '^(pdf_parser|tests).*\.(py|ipynb)$'
+        files: '^(hi_pdf_parser|tests).*\.(py|ipynb)$'
   - repo: local
     hooks:
       - id: system
         name: MyPy
-        entry: uv run --no-sync mypy pdf_parser
+        entry: uv run --no-sync mypy hi_pdf_parser
         pass_filenames: false
         language: system
         files: '\.py$'

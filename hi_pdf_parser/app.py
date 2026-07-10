@@ -17,21 +17,14 @@ import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
 
-from .config import PyMuPDFParserConfig
 from .datamodel import HealthCheckResponse, ParseRequest, ParseResponse
-from .parser import PyMuPDFParser
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s:\t%(asctime)s - %(name)s - %(message)s",
-    datefmt="%H:%M:%S",
-)
+from .parser import create_parser
 
 _logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
-    parser = PyMuPDFParser(PyMuPDFParserConfig())
+    parser = create_parser()
     app = FastAPI(
         title="PDF Parser Serve",
     )
@@ -50,6 +43,7 @@ def create_app() -> FastAPI:
                 password=request.password,
                 extract_images=request.extract_images,
                 extract_tables=request.extract_tables,
+                page_range=request.page_range,
             )
         except PermissionError as e:
             raise HTTPException(
