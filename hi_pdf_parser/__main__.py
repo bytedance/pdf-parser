@@ -12,148 +12,210 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import json
-import logging
-from collections.abc import Iterator
-from enum import StrEnum
-from pathlib import Path
-from typing import Annotated, Any
+"""Unified ``hi-pdf-parser`` command line entry point."""
 
+from __future__ import annotations
+
+import logging
+import sys
+from pathlib import Path
+from typing import Annotated, NoReturn, cast
+
+import click
 import typer
 
-from .config import PyMuPDFParserConfig
-from .datamodel import Block
-from .parser import PyMuPDFParser
+from .envelope import dumps
+from .errors import EXIT_INTERNAL_ERROR, EXIT_OK, EXIT_USAGE
+from .logging_setup import configure_logging
+from .runner import PageRange, collect_input_paths, parse_file
 from .settings import UvicornSettings
 
-app = typer.Typer(name="hi-pdf-parser", help="PDF Parser CLI and server")
+_log = logging.getLogger(__name__)
+
+app = typer.Typer(
+    name="hi-pdf-parser",
+    help="PDF Parser CLI and server.",
+    epilog="""Examples:
+  hi-pdf-parser parse report.pdf --out ./out
+  hi-pdf-parser parse a.pdf b.pdf --out ./out
+  hi-pdf-parser -v parse report.pdf --out ./out
+  hi-pdf-parser serve --host 0.0.0.0 --port 8000
+
+Show subcommand help:
+  hi-pdf-parser parse --help
+  hi-pdf-parser serve --help
+
+Notes:
+  - Global options must appear before the subcommand, e.g. `hi-pdf-parser -v parse ...`.
+  - parse accepts PDF files only; use docparser for other formats.""",
+    no_args_is_help=False,
+    add_completion=False,
+)
 
 
-def _validate_pdf_file(file_path: str) -> Path:
-    p = Path(file_path)
-    if not p.exists():
-        raise typer.BadParameter(f"File does not exist: {file_path}")
-    if not p.is_file():
-        raise typer.BadParameter(f"Path is not a file: {file_path}")
-    return p
-
-
-class OutputFormat(StrEnum):
-    json = "json"
-    text = "text"
-
-
-def _output_results(
-    blocks: list[Block],
-    metadata: dict,
-    output_file: str | None,
-    output_format: OutputFormat,
-) -> None:
-    def _text_lines() -> Iterator[str]:
-        prev_page = -1
-        for b in blocks:
-            page_num: int | None = None
-            if b.areas:
-                page_num = b.areas[0].page_num
-            if page_num is not None and page_num != prev_page:
-                yield f"-------------- Page {page_num} --------------"
-                prev_page = page_num
-            yield b.content
-
-    if output_format == OutputFormat.text:
-        if output_file:
-            Path(output_file).write_text("\n".join(_text_lines()), encoding="utf-8")
-            typer.echo(f"Results written to: {output_file}")
-        else:
-            for line in _text_lines():
-                typer.echo(line)
-        return
-
-    result = {"blocks": [b.model_dump() for b in blocks], "metadata": metadata}
-    if output_file:
-        Path(output_file).write_text(
-            json.dumps(result, ensure_ascii=False), encoding="utf-8"
-        )
-        typer.echo(f"Results written to: {output_file}")
-    else:
-        typer.echo(json.dumps(result, ensure_ascii=False))
-
-
-@app.command()
-def parse(
-    pdf_file: Annotated[str, typer.Argument(help="Path to the PDF file to parse")],
-    output: Annotated[
-        str | None,
-        typer.Option("-o", "--output", help="Output file path (default: stdout)"),
-    ] = None,
-    extract_images: Annotated[
+@app.callback()
+def _configure(
+    quiet: Annotated[
         bool,
         typer.Option(
-            "--extract-images/--no-extract-images", help="Extract images from the PDF"
+            "--quiet", show_envvar=False, help="Disable package progress logs."
         ),
-    ] = True,
-    extract_tables: Annotated[
-        bool,
-        typer.Option(
-            "--extract-tables/--no-extract-tables", help="Extract tables from the PDF"
-        ),
-    ] = True,
-    skip_header_footer: Annotated[
-        bool,
-        typer.Option(
-            "--skip-header-footer/--no-skip-header-footer",
-            help="Skip header and footer detection",
-        ),
-    ] = True,
-    max_pages: Annotated[
-        int | None,
-        typer.Option(
-            "--max-pages",
-            help="Maximum number of pages to process (default: all pages)",
-        ),
-    ] = None,
-    password: Annotated[
-        str | None,
-        typer.Option("--password", help="Password for encrypted PDF files"),
-    ] = None,
-    format: Annotated[
-        OutputFormat, typer.Option("--format", help="Output format")
-    ] = OutputFormat.text,
-    verbose: Annotated[
-        bool, typer.Option("-v", "--verbose", help="Enable verbose logging")
     ] = False,
+    verbose: Annotated[
+        int,
+        typer.Option(
+            "-v",
+            "--verbose",
+            count=True,
+            show_envvar=False,
+            help="Increase the package stderr log level; repeat for debug logs.",
+        ),
+    ] = 0,
 ) -> None:
-    if verbose:
-        logging.basicConfig(level=logging.INFO)
-    pdf_path = _validate_pdf_file(pdf_file)
-    cfg: dict[str, Any] = {
-        "extract_images": extract_images,
-        "extract_tables": extract_tables,
-        "skip_header_footer": skip_header_footer,
-    }
-    if max_pages is not None:
-        cfg["max_pages"] = max_pages
-    config = PyMuPDFParserConfig(**cfg)
-    parser = PyMuPDFParser(config)
-    try:
-        typer.echo(f"Parsing PDF: {pdf_file}", err=True)
-        blocks, metadata = parser.parse(
-            str(pdf_path),
-            extract_images=extract_images,
-            extract_tables=extract_tables,
-            password=password,
-        )
-        typer.echo(f"Extracted {len(blocks)} blocks", err=True)
-        _output_results(blocks, metadata, output, format)
-    except FileNotFoundError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
-    except PermissionError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
-    except Exception as e:
-        typer.echo(f"Error parsing PDF: {e}", err=True)
-        raise typer.Exit(1)
+    level = logging.DEBUG if verbose >= 2 else logging.INFO
+    configure_logging(level=level, quiet=quiet)
+
+
+def _validate_output_format(value: str) -> str:
+    if value != "markdown":
+        raise typer.BadParameter("--format currently supports markdown only.")
+    return value
+
+
+def _validate_out_naming(value: str) -> str:
+    if value != "stem":
+        raise typer.BadParameter("--out-naming currently supports stem only.")
+    return value
+
+
+def _parse_pages(pages: str | None) -> PageRange | None:
+    if pages is None:
+        return None
+
+    raw = pages.strip()
+    hint = (
+        "MVP supports a single page (for example 5), an inclusive range "
+        "(for example 1-20), or two consecutive comma-separated pages "
+        "(for example 3,4); non-contiguous pages (for example 1,5,9), "
+        "reversed ranges, and 0 or negative values are not supported."
+    )
+
+    def fail() -> NoReturn:
+        raise typer.BadParameter(f"Invalid --pages value: {pages!r}. {hint}")
+
+    if not raw or ("-" in raw and "," in raw):
+        fail()
+
+    if "-" in raw:
+        parts = raw.split("-")
+        if len(parts) != 2:
+            fail()
+        start, end = _to_positive_int(parts[0], fail), _to_positive_int(parts[1], fail)
+        if start > end:
+            fail()
+        return (start, end)
+
+    if "," in raw:
+        parts = raw.split(",")
+        if len(parts) != 2:
+            fail()
+        start, end = _to_positive_int(parts[0], fail), _to_positive_int(parts[1], fail)
+        if end != start + 1:
+            fail()
+        return (start, end)
+
+    page = _to_positive_int(raw, fail)
+    return (page, page)
+
+
+def _to_positive_int(token: str, on_error) -> int:
+    token = token.strip()
+    if not token.isdigit():
+        on_error()
+    value = int(token)
+    if value < 1:
+        on_error()
+    return value
+
+
+OutOption = Annotated[
+    Path,
+    typer.Option(
+        "--out", show_envvar=False, help="Output root directory; default is ./out."
+    ),
+]
+OutputFormatOption = Annotated[
+    str,
+    typer.Option(
+        "--format",
+        callback=_validate_output_format,
+        show_envvar=False,
+        help="Output format; currently only markdown is supported.",
+    ),
+]
+PagesOption = Annotated[
+    str | None,
+    typer.Option(
+        "--pages",
+        "-p",
+        callback=_parse_pages,
+        show_envvar=False,
+        help="Page range: single page n, range a-b, or consecutive pages 3,4; non-contiguous ranges are not supported.",
+    ),
+]
+OutNamingOption = Annotated[
+    str,
+    typer.Option(
+        "--out-naming",
+        callback=_validate_out_naming,
+        show_envvar=False,
+        help="Output naming strategy; currently only stem is supported.",
+    ),
+]
+
+
+@app.command(help="Parse one or more PDFs and print JSON envelopes to stdout.")
+def parse(
+    files: Annotated[
+        list[Path] | None,
+        typer.Argument(help="PDF file(s) to parse."),
+    ] = None,
+    out: OutOption = Path("./out"),
+    output_format: OutputFormatOption = "markdown",
+    pages: PagesOption = None,
+    out_naming: OutNamingOption = "stem",
+) -> int:
+    inputs = collect_input_paths(files)
+    page_range = cast(PageRange | None, pages)
+
+    first_failure_code: int | None = None
+    failure_codes: list[int] = []
+    failures: list[str] = []
+    total = len(inputs)
+
+    for input_path in inputs:
+        envelope, code = parse_file(input_path, out, page_range)
+        typer.echo(dumps(envelope))
+        if code != EXIT_OK:
+            if first_failure_code is None:
+                first_failure_code = code
+            failure_codes.append(code)
+            failures.append(str(input_path))
+
+    success_count = total - len(failure_codes)
+    if not failure_codes:
+        return EXIT_OK
+
+    _log.error(
+        "parse_failures count=%d/%d files=%s",
+        len(failure_codes),
+        total,
+        ",".join(failures),
+    )
+
+    if success_count == 0:
+        return first_failure_code or 1
+    return 1
 
 
 @app.command()
@@ -206,5 +268,21 @@ def serve(
     )
 
 
+def main(argv: list[str] | None = None) -> int:
+    try:
+        result = app(args=argv, prog_name="hi-pdf-parser", standalone_mode=False)
+    except click.exceptions.Exit as exc:
+        return exc.exit_code
+    except click.Abort:
+        click.echo("Aborted!", err=True)
+        return EXIT_INTERNAL_ERROR
+    except click.ClickException as exc:
+        exc.show()
+        return exc.exit_code or EXIT_USAGE
+    if isinstance(result, int):
+        return result
+    return EXIT_OK
+
+
 if __name__ == "__main__":
-    app()
+    sys.exit(main())

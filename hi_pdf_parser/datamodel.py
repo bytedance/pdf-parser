@@ -15,7 +15,7 @@
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class HealthCheckResponse(BaseModel):
@@ -45,6 +45,23 @@ class ParseRequest(BaseModel):
     password: str | None = Field(None, description="file password")
     extract_images: bool = Field(True, description="enable image extraction")
     extract_tables: bool = Field(True, description="enable table extraction")
+    page_range: tuple[int, int] | None = Field(
+        None,
+        description="inclusive 1-based page range",
+        examples=[[2, 4]],
+    )
+
+    @field_validator("page_range")
+    @classmethod
+    def validate_page_range(
+        cls, value: tuple[int, int] | None
+    ) -> tuple[int, int] | None:
+        if value is None:
+            return None
+        start, end = value
+        if start < 1 or end < 1 or start > end:
+            raise ValueError("page_range must be a positive inclusive range")
+        return value
 
 
 class ParseResponse(BaseModel):

@@ -18,6 +18,18 @@ Install the optional server dependencies when running the HTTP server:
 pip install 'hi-pdf-parser[server]'
 ```
 
+## CLI
+
+The official command is `hi-pdf-parser`.
+
+```bash
+hi-pdf-parser parse report.pdf --out ./out
+hi-pdf-parser parse a.pdf b.pdf --out ./out
+hi-pdf-parser serve --host 0.0.0.0 --port 8000
+```
+
+`parse` writes Markdown, assets, manifest, and logs under `<out>/<stem>/`, and emits one JSON envelope per input on stdout. `serve` starts the HTTP API server and requires the `server` extra.
+
 ## Developing
 
 ### Prepare
