@@ -1,17 +1,17 @@
 [project]
 name = "hi-pdf-parser"
-version = "0.0.4"
+version = "0.0.5"
 description = "A HTTP PDF parse server"
 license = "AGPL-3.0-only"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
     "pandas>=2.3.1",
-    "pillow>=12.2.0",
+    "pillow>=12.3.0",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
     "pymupdf>=1.26.7,<2",
-    "python-multipart>=0.0.29",
+    "python-multipart>=0.0.31",
     "typer>=0.12.5",
 ]
 
