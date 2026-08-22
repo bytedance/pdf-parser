@@ -6,6 +6,8 @@ This project uses [PyMuPDF](https://pymupdf.readthedocs.io/en/latest/) and compl
 
 ## Installation
 
+PDF Parser requires Python 3.11 (`>=3.11,<3.12`).
+
 To use PDF Parser, simply install `hi-pdf-parser` from your package manager, e.g. pip:
 
 ```bash
