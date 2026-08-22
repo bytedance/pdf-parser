@@ -61,9 +61,10 @@ def parse_file(
         return env.error_envelope_from_exc(str(input_path), exc), exc.exit_code
 
     stem = input_path.stem
-    stem_dir = ow.prepare_output_dir(out, stem)
-    handler = attach_file_handler(ow.stderr_log_path(stem_dir))
+    handler: logging.Handler | None = None
     try:
+        stem_dir = ow.prepare_output_dir(out, stem)
+        handler = attach_file_handler(ow.stderr_log_path(stem_dir))
         _log.info(
             "local_parse_start input=%s page_range=%s",
             input_path,
@@ -120,7 +121,8 @@ def parse_file(
         )
         return envelope, 1
     finally:
-        detach_file_handler(handler)
+        if handler is not None:
+            detach_file_handler(handler)
 
 
 def _parse_pdf_blocks(
