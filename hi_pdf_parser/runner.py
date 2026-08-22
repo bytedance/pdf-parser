@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -37,11 +38,14 @@ def collect_input_paths(files: list[Path] | None) -> list[Path]:
 
     seen: dict[str, Path] = {}
     for path in inputs:
-        if path.stem in seen:
+        stem_key = os.path.normcase(path.stem)
+        if stem_key in seen:
+            previous = seen[stem_key]
             raise click.UsageError(
-                f"Stem collision: {path} and {seen[path.stem]} share output directory name '{path.stem}'."
+                f"Stem collision: {path} and {previous} share output directory name "
+                f"'{path.stem}'."
             )
-        seen[path.stem] = path
+        seen[stem_key] = path
 
     return inputs
 
