@@ -2,24 +2,37 @@ ARG BASE_IMAGE=python:3.11-slim-bookworm
 
 FROM ${BASE_IMAGE} AS exporter
 
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+USER root
+
+RUN command -v uv >/dev/null || python3 -m pip install --no-cache-dir uv
 
 WORKDIR /app
 
-ADD pyproject.toml uv.lock .
+COPY pyproject.toml uv.lock ./
 
-RUN /root/.local/bin/uv export --extra server --no-hashes --no-dev -o requirements.txt
+RUN uv export \
+    --extra server \
+    --frozen \
+    --no-dev \
+    --no-emit-project \
+    --no-hashes \
+    --output-file requirements.txt
 
 FROM ${BASE_IMAGE}
 
-COPY --from=exporter --chown=nobody:nogroup /app/requirements.txt .
-
-RUN pip install -r requirements.txt
-
-USER nobody:nogroup
+USER root
 
 WORKDIR /app
 
-COPY hi_pdf_parser ./hi_pdf_parser
+COPY --from=exporter /app/requirements.txt /tmp/requirements.txt
+RUN python3 -m pip install \
+    --no-cache-dir \
+    --only-binary=:all: \
+    --requirement /tmp/requirements.txt \
+    && rm -f /tmp/requirements.txt
+
+COPY --chown=65534:65534 hi_pdf_parser ./hi_pdf_parser
+
+USER 65534:65534
 
 CMD ["python3", "-m", "hi_pdf_parser", "serve"]
