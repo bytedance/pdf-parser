@@ -8,31 +8,22 @@ RUN command -v uv >/dev/null || python3 -m pip install --no-cache-dir uv
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock ./
+ADD pyproject.toml uv.lock .
 
-RUN uv export \
-    --extra server \
-    --frozen \
-    --no-dev \
-    --no-emit-project \
-    --no-hashes \
-    --output-file requirements.txt
+RUN uv export --extra server --no-hashes --no-dev --no-emit-project -o requirements.txt
 
 FROM ${BASE_IMAGE}
 
 USER root
 
-WORKDIR /app
+COPY --from=exporter /app/requirements.txt .
 
-COPY --from=exporter /app/requirements.txt /tmp/requirements.txt
-RUN python3 -m pip install \
-    --no-cache-dir \
-    --only-binary=:all: \
-    --requirement /tmp/requirements.txt \
-    && rm -f /tmp/requirements.txt
-
-COPY --chown=65534:65534 hi_pdf_parser ./hi_pdf_parser
+RUN pip install -r requirements.txt
 
 USER 65534:65534
+
+WORKDIR /app
+
+COPY hi_pdf_parser ./hi_pdf_parser
 
 CMD ["python3", "-m", "hi_pdf_parser", "serve"]
