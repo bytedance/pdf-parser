@@ -7,9 +7,11 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from hi_pdf_parser import logging_setup
 from hi_pdf_parser.__main__ import main
+from hi_pdf_parser.errors import OutputWriteError
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -130,6 +132,21 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(stdout, "")
         self.assertIn("parse requires at least one file", stderr)
+
+    def test_parse_reports_output_initialization_failure(self) -> None:
+        with patch(
+            "hi_pdf_parser.runner.ow.prepare_output_dir",
+            side_effect=OutputWriteError("output denied"),
+        ):
+            code, stdout, _stderr = self._run_command(
+                ["parse", str(FIXTURES / "normal.pdf")]
+            )
+
+        envelope = json.loads(stdout)
+        self.assertEqual(code, 40)
+        self.assertEqual(envelope["status"], "error")
+        self.assertEqual(envelope["error_type"], "OUTPUT_WRITE_FAILURE")
+        self.assertEqual(envelope["message"], "output denied")
 
 
 if __name__ == "__main__":
