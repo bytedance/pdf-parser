@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from hi_pdf_parser import logging_setup
 from hi_pdf_parser.__main__ import main
@@ -130,6 +131,16 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(stdout, "")
         self.assertIn("parse requires at least one file", stderr)
+
+    def test_parse_rejects_case_insensitive_stem_collision(self) -> None:
+        with patch("hi_pdf_parser.runner.os.path.normcase", side_effect=str.casefold):
+            code, stdout, stderr = self._run_command(
+                ["parse", "a/Report.pdf", "b/report.pdf"]
+            )
+
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, "")
+        self.assertIn("Stem collision", stderr)
 
 
 if __name__ == "__main__":
