@@ -6,6 +6,7 @@ license = "AGPL-3.0-only"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "click>=8.0",
     "pandas>=2.3.1",
     "pillow>=12.3.0",
     "pydantic>=2.11.7",
