@@ -108,9 +108,10 @@ wheels = [
 
 [[package]]
 name = "hi-pdf-parser"
-version = "0.0.5"
+version = "0.0.6"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "pandas" },
     { name = "pillow" },
     { name = "pydantic" },
@@ -136,6 +137,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "click", specifier = ">=8.0" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.136.3" },
     { name = "pandas", specifier = ">=2.3.1" },
     { name = "pillow", specifier = ">=12.3.0" },
